@@ -32,8 +32,8 @@ module.exports = {
     username: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
+    host: process.env.DB_HOST?.startsWith('/cloudsql') ? null : process.env.DB_HOST,
+    port: process.env.DB_HOST?.startsWith('/cloudsql') ? null : (process.env.DB_PORT || 3306),
     dialect: 'mysql',
     logging: false,
     define: {
@@ -46,6 +46,12 @@ module.exports = {
       acquire: 30000,
       idle: 10000,
     },
+    // Cloud SQL socket connection
+    ...(process.env.DB_HOST?.startsWith('/cloudsql') && {
+      dialectOptions: {
+        socketPath: process.env.DB_HOST,
+      },
+    }),
   },
 };
 
