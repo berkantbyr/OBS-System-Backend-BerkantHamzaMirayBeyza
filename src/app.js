@@ -30,6 +30,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   process.env.FRONTEND_URL,
+  // Google Cloud Run frontend URL'leri
+  'https://obs-frontend-214391529742.europe-west1.run.app',
 ].filter(Boolean);
 
 const corsOptions = {
@@ -39,7 +41,9 @@ const corsOptions = {
     
     // Check if origin is in allowed list or matches local network pattern
     const isLocalNetwork = /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)\d+\.\d+(:\d+)?$/.test(origin);
-    const isAllowed = allowedOrigins.includes(origin) || isLocalNetwork;
+    // Google Cloud Run URL pattern
+    const isCloudRun = /^https:\/\/.*\.run\.app$/.test(origin);
+    const isAllowed = allowedOrigins.includes(origin) || isLocalNetwork || isCloudRun;
     
     if (isAllowed) {
       callback(null, true);
@@ -48,6 +52,7 @@ const corsOptions = {
       if (process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
+        logger.warn(`CORS blocked origin: ${origin}`);
         callback(new Error('CORS policy violation'));
       }
     }
