@@ -43,7 +43,8 @@ services:
     image: mysql:8.0
     container_name: obs-mysql
     ports:
-      - "3306:3306"
+      # DIŞ PORT: 3307 -> İÇ PORT: 3306
+      - "3307:3306"
     environment:
       - MYSQL_ROOT_PASSWORD=rootpassword
       - MYSQL_DATABASE=campus_db
