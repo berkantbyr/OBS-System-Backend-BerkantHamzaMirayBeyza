@@ -38,8 +38,8 @@ RUN npm ci --only=production && \
 # Copy application code
 COPY --chown=nodejs:nodejs src/ ./src/
 
-# Create uploads directory
-RUN mkdir -p uploads && chown nodejs:nodejs uploads
+# Create uploads and logs directories
+RUN mkdir -p uploads logs && chown -R nodejs:nodejs uploads logs
 
 # Switch to non-root user
 USER nodejs
