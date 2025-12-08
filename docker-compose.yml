@@ -1,0 +1,71 @@
+# ==========================================
+# Docker Compose - Local Development
+# ==========================================
+# Kullanım: docker-compose up -d
+
+version: '3.8'
+
+services:
+  # Node.js API Server
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: obs-api
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=campus_db
+      - DB_USER=admin
+      - DB_PASSWORD=securepassword123
+      - JWT_SECRET=your-super-secret-jwt-key-change-this
+      - JWT_EXPIRES_IN=7d
+      - EMAIL_HOST=smtp.gmail.com
+      - EMAIL_PORT=587
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+      - FRONTEND_URL=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - obs-network
+    restart: unless-stopped
+    volumes:
+      - uploads:/app/uploads
+
+  # MySQL Database
+  db:
+    image: mysql:8.0
+    container_name: obs-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=campus_db
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=securepassword123
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - obs-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password
+
+networks:
+  obs-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+  uploads:
