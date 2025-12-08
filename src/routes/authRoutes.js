@@ -24,6 +24,13 @@ router.post('/register', validate(registerSchema), authController.register);
 router.post('/verify-email', authController.verifyEmail);
 
 /**
+ * @route   POST /api/v1/auth/resend-verification
+ * @desc    Resend verification email
+ * @access  Public
+ */
+router.post('/resend-verification', authController.resendVerification);
+
+/**
  * @route   POST /api/v1/auth/login
  * @desc    Login user
  * @access  Public

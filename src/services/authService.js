@@ -320,6 +320,50 @@ const forgotPassword = async (email) => {
 };
 
 /**
+ * Resend verification email
+ * @param {string} email - User email
+ * @returns {Object} Success message
+ */
+const resendVerification = async (email) => {
+  const user = await User.findOne({ where: { email } });
+
+  if (!user) {
+    // Don't reveal if email exists for security
+    return { message: 'Eğer bu e-posta adresi kayıtlıysa, doğrulama bağlantısı gönderildi' };
+  }
+
+  // Check if already verified
+  if (user.is_verified) {
+    throw new Error('Bu e-posta adresi zaten doğrulanmış');
+  }
+
+  // Invalidate old verification tokens
+  await EmailVerification.update(
+    { is_used: true },
+    { where: { user_id: user.id, is_used: false } }
+  );
+
+  // Generate new verification token
+  const verificationToken = generateVerificationToken({ userId: user.id, email });
+
+  // Save new verification token
+  await EmailVerification.create({
+    user_id: user.id,
+    token: verificationToken,
+    expires_at: getExpirationDate(jwtConfig.verificationTokenExpiry),
+  });
+
+  // Send verification email
+  sendVerificationEmail(email, verificationToken, user.first_name).catch(err => {
+    logger.error('Failed to send verification email:', err);
+  });
+
+  logger.info(`Verification email resent to: ${email}`);
+
+  return { message: 'Doğrulama bağlantısı e-posta adresinize gönderildi' };
+};
+
+/**
  * Reset password with token
  * @param {string} token - Reset token
  * @param {string} newPassword - New password
@@ -369,6 +413,7 @@ const resetPassword = async (token, newPassword) => {
 module.exports = {
   register,
   verifyEmail,
+  resendVerification,
   login,
   refreshAccessToken,
   logout,

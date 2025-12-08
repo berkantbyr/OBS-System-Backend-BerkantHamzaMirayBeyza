@@ -58,6 +58,47 @@ const verifyEmail = async (req, res, next) => {
 };
 
 /**
+ * Resend verification email
+ * POST /api/v1/auth/resend-verification
+ */
+const resendVerification = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'E-posta adresi gerekli',
+        code: 'MISSING_EMAIL',
+      });
+    }
+    
+    const result = await authService.resendVerification(email);
+    
+    res.status(200).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    logger.error('Resend verification error:', error);
+    
+    if (error.message.includes('zaten doğrulanmış')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        code: 'ALREADY_VERIFIED',
+      });
+    }
+    
+    res.status(400).json({
+      success: false,
+      message: error.message,
+      code: 'RESEND_ERROR',
+    });
+  }
+};
+
+/**
  * Login user
  * POST /api/v1/auth/login
  */
@@ -199,6 +240,7 @@ const resetPassword = async (req, res, next) => {
 module.exports = {
   register,
   verifyEmail,
+  resendVerification,
   login,
   refresh,
   logout,
