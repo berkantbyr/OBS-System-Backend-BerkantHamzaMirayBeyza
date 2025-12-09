@@ -65,3 +65,4 @@ timeout: '1200s'
 # Build options
 options:
   logging: CLOUD_LOGGING_ONLY
+

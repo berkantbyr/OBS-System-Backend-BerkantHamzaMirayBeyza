@@ -32,7 +32,6 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   // Google Cloud Run frontend URL'leri
   'https://obs-frontend-214391529742.europe-west1.run.app',
-  'https://obs-frontend-533500680660.europe-west1.run.app',
 ].filter(Boolean);
 
 const corsOptions = {
