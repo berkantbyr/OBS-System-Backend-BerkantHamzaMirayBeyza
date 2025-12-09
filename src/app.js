@@ -32,6 +32,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   // Google Cloud Run frontend URL'leri
   'https://obs-frontend-214391529742.europe-west1.run.app',
+  'https://obs-frontend-533500680660.europe-west1.run.app',
 ].filter(Boolean);
 
 const corsOptions = {
@@ -52,18 +53,28 @@ const corsOptions = {
       if (process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
-        logger.warn(`CORS blocked origin: ${origin}`);
-        callback(new Error('CORS policy violation'));
+        // Production'da da Cloud Run URL'lerini kabul et
+        logger.warn(`CORS checking origin: ${origin}`);
+        // Cloud Run URL'lerini her zaman kabul et
+        if (origin && origin.includes('.run.app')) {
+          callback(null, true);
+        } else {
+          logger.warn(`CORS blocked origin: ${origin}`);
+          callback(new Error('CORS policy violation'));
+        }
       }
     }
   },
   credentials: true,
   optionsSuccessStatus: 200,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  preflightContinue: false,
 };
 
 // Middleware
+// Enable pre-flight requests for all routes
+app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
