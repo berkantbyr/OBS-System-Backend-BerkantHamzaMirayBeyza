@@ -76,8 +76,9 @@ const register = async (userData) => {
       role,
       first_name: firstName,
       last_name: lastName,
-      is_active: false,
-      is_verified: false,
+      // Email doğrulamasını devre dışı bıraktık
+      is_active: true,
+      is_verified: true,
     }, { transaction });
 
     // Create role-specific record
@@ -96,27 +97,12 @@ const register = async (userData) => {
       }, { transaction });
     }
 
-    // Generate verification token
-    const verificationToken = generateVerificationToken({ userId: user.id, email });
-    
-    // Save verification token
-    await EmailVerification.create({
-      user_id: user.id,
-      token: verificationToken,
-      expires_at: getExpirationDate(jwtConfig.verificationTokenExpiry),
-    }, { transaction });
-
     await transaction.commit();
-
-    // Send verification email (don't await to avoid blocking)
-    sendVerificationEmail(email, verificationToken, firstName).catch(err => {
-      logger.error('Failed to send verification email:', err);
-    });
 
     logger.info(`New user registered: ${email} (${role})`);
 
     return {
-      message: 'Kayıt başarılı. Lütfen e-posta adresinizi doğrulayın.',
+      message: 'Kayıt başarılı.',
       user: user.toSafeObject(),
     };
   } catch (error) {
@@ -183,15 +169,8 @@ const login = async (email, password, metadata = {}) => {
     throw new Error('E-posta veya şifre hatalı');
   }
 
-  // Check if user is verified
-  if (!user.is_verified) {
-    throw new Error('Lütfen önce e-posta adresinizi doğrulayın');
-  }
-
-  // Check if user is active
-  if (!user.is_active) {
-    throw new Error('Hesabınız aktif değil. Lütfen yöneticiyle iletişime geçin');
-  }
+  // Email doğrulamasını zorunlu tutma
+  // Hesap aktiflik kontrolü de devre dışı bırakıldı
 
   // Verify password
   const isValidPassword = await comparePassword(password, user.password_hash);
