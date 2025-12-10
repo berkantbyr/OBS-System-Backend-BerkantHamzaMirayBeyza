@@ -55,16 +55,12 @@ const sendEmail = async (options) => {
         return { messageId: 'dev-mode-no-email' };
       }
       
-      // In production, log error but don't throw - let the calling function handle it
-      // This allows registration to succeed even if email can't be sent
+      // In production, throw error with clear message
       logger.error('═══════════════════════════════════════════════════════');
       logger.error('ACTION REQUIRED: Set EMAIL_USER and EMAIL_PASS secrets in Cloud Run');
       logger.error('See PRODUCTION_EMAIL_SETUP.md for instructions');
       logger.error('═══════════════════════════════════════════════════════');
-      // Don't throw - return error object instead so calling function can handle gracefully
-      const error = new Error('Email service is not configured. EMAIL_USER and EMAIL_PASS must be set in Cloud Run secrets.');
-      error.code = 'EMAIL_NOT_CONFIGURED';
-      throw error;
+      throw new Error('Email service is not configured. EMAIL_USER and EMAIL_PASS must be set in Cloud Run secrets.');
     }
 
     const mailOptions = {
