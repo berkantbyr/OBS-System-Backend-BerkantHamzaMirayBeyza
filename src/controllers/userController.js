@@ -9,13 +9,6 @@ const getProfile = async (req, res, next) => {
   try {
     const user = await userService.getProfile(req.user.id);
     
-    // Convert profile picture URL to full URL if exists
-    if (user.profile_picture_url && !user.profile_picture_url.startsWith('http')) {
-      const protocol = req.protocol;
-      const host = req.get('host');
-      user.profile_picture_url = `${protocol}://${host}${user.profile_picture_url}`;
-    }
-    
     res.status(200).json({
       success: true,
       data: user,
@@ -72,16 +65,11 @@ const updateProfilePicture = async (req, res, next) => {
     const pictureUrl = `/uploads/${req.file.filename}`;
     const user = await userService.updateProfilePicture(req.user.id, pictureUrl);
     
-    // Get full URL for the profile picture
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const fullPictureUrl = `${protocol}://${host}${pictureUrl}`;
-    
     res.status(200).json({
       success: true,
       message: 'Profil fotoğrafı güncellendi',
       data: {
-        profilePictureUrl: fullPictureUrl,
+        profilePictureUrl: pictureUrl,
         user,
       },
     });
@@ -130,19 +118,9 @@ const getAllUsers = async (req, res, next) => {
   try {
     const result = await userService.getAllUsers(req.query);
     
-    // Convert profile picture URLs to full URLs
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const users = result.users.map(user => {
-      if (user.profile_picture_url && !user.profile_picture_url.startsWith('http')) {
-        user.profile_picture_url = `${protocol}://${host}${user.profile_picture_url}`;
-      }
-      return user;
-    });
-    
     res.status(200).json({
       success: true,
-      data: users,
+      data: result.users,
       pagination: result.pagination,
     });
   } catch (error) {
@@ -163,13 +141,6 @@ const getAllUsers = async (req, res, next) => {
 const getUserById = async (req, res, next) => {
   try {
     const user = await userService.getUserById(req.params.id);
-    
-    // Convert profile picture URL to full URL if exists
-    if (user.profile_picture_url && !user.profile_picture_url.startsWith('http')) {
-      const protocol = req.protocol;
-      const host = req.get('host');
-      user.profile_picture_url = `${protocol}://${host}${user.profile_picture_url}`;
-    }
     
     res.status(200).json({
       success: true,

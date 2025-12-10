@@ -219,9 +219,7 @@ const forgotPassword = async (req, res, next) => {
  */
 const resetPassword = async (req, res, next) => {
   try {
-    const { token, password, confirmPassword } = req.body;
-    
-    // confirmPassword is validated by schema, but we use password for reset
+    const { token, password } = req.body;
     const result = await authService.resetPassword(token, password);
     
     res.status(200).json({
