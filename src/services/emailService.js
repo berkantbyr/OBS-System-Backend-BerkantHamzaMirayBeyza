@@ -31,8 +31,13 @@ const sendEmail = async (options) => {
     
     // Check if email is configured
     if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-      logger.warn('Email not configured. EMAIL_USER and EMAIL_PASS must be set in .env file.');
-      logger.warn('Email would be sent to:', options.to, 'Subject:', options.subject);
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('❌ EMAIL SERVICE NOT CONFIGURED');
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('EMAIL_USER and EMAIL_PASS must be set in environment variables');
+      logger.error(`Attempted to send email to: ${options.to}`);
+      logger.error(`Subject: ${options.subject}`);
+      
       // In development, we can log the reset token instead of sending email
       if (process.env.NODE_ENV === 'development') {
         // Extract token from email content
@@ -47,12 +52,15 @@ const sendEmail = async (options) => {
           logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
           logger.info('═══════════════════════════════════════════════════════');
         }
+        return { messageId: 'dev-mode-no-email' };
       }
-      // Don't throw error in development to allow testing
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error('Email service is not configured');
-      }
-      return { messageId: 'dev-mode-no-email' };
+      
+      // In production, throw error with clear message
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('ACTION REQUIRED: Set EMAIL_USER and EMAIL_PASS secrets in Cloud Run');
+      logger.error('See PRODUCTION_EMAIL_SETUP.md for instructions');
+      logger.error('═══════════════════════════════════════════════════════');
+      throw new Error('Email service is not configured. EMAIL_USER and EMAIL_PASS must be set in Cloud Run secrets.');
     }
 
     const mailOptions = {
@@ -71,10 +79,32 @@ const sendEmail = async (options) => {
     return info;
   } catch (error) {
     logger.error('Email send error:', error);
+    logger.error('Error details:', {
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      responseCode: error.responseCode,
+      message: error.message,
+    });
+    
     // Log more details about the error
     if (error.code === 'EAUTH') {
-      logger.error('Email authentication failed. Check EMAIL_USER and EMAIL_PASS in .env');
+      logger.error('Email authentication failed. Check EMAIL_USER and EMAIL_PASS in environment variables.');
+      logger.error('Make sure you are using an App Password for Gmail, not your regular password.');
+    } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
+      logger.error('Email server connection failed. Check EMAIL_HOST and EMAIL_PORT.');
+    } else if (error.responseCode === 535) {
+      logger.error('Gmail authentication failed. Invalid credentials or App Password required.');
     }
+    
+    // In production, provide more helpful error messages
+    if (process.env.NODE_ENV === 'production') {
+      const errorMessage = error.code === 'EAUTH' 
+        ? 'Email servisi yapılandırma hatası. Lütfen sistem yöneticisine başvurun.'
+        : 'Email gönderilemedi. Lütfen daha sonra tekrar deneyin.';
+      throw new Error(errorMessage);
+    }
+    
     throw error;
   }
 };

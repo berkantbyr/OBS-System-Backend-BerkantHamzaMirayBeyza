@@ -69,16 +69,15 @@ const register = async (userData) => {
   const transaction = await db.sequelize.transaction();
 
   try {
-    // Create user
+    // Create user (email verification required)
     const user = await User.create({
       email,
       password_hash: hashedPassword,
       role,
       first_name: firstName,
       last_name: lastName,
-      // Email doğrulamasını devre dışı bıraktık
-      is_active: true,
-      is_verified: true,
+      is_active: false, // Will be activated after email verification
+      is_verified: false, // Email verification required
     }, { transaction });
 
     // Create role-specific record
@@ -97,12 +96,40 @@ const register = async (userData) => {
       }, { transaction });
     }
 
+    // Generate verification token
+    const verificationToken = generateVerificationToken({
+      userId: user.id,
+      email: user.email,
+    });
+
+    // Create email verification record
+    const expiresAt = getExpirationDate(jwtConfig.verificationTokenExpiry);
+    await EmailVerification.create({
+      user_id: user.id,
+      token: verificationToken,
+      expires_at: expiresAt,
+      is_used: false,
+    }, { transaction });
+
     await transaction.commit();
+
+    // Send verification email (outside transaction to avoid rollback on email failure)
+    try {
+      await sendVerificationEmail(email, verificationToken, firstName);
+      logger.info(`Verification email sent to: ${email}`);
+    } catch (emailError) {
+      // Log email error but don't fail registration
+      logger.error(`Failed to send verification email to ${email}:`, emailError);
+      // In production, you might want to throw this error
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Kayıt başarılı ancak doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.');
+      }
+    }
 
     logger.info(`New user registered: ${email} (${role})`);
 
     return {
-      message: 'Kayıt başarılı.',
+      message: 'Kayıt başarılı. Lütfen e-posta adresinizi doğrulayın.',
       user: user.toSafeObject(),
     };
   } catch (error) {
@@ -321,15 +348,41 @@ const forgotPassword = async (email) => {
   try {
     await sendPasswordResetEmail(recipientEmail, resetToken, user.first_name);
     logger.info(`Password reset email sent to: ${recipientEmail} (user login email: ${user.email})`);
+    logger.info(`Password reset requested - User login: ${user.email}, Email sent to: ${recipientEmail}`);
+    return { message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' };
   } catch (err) {
     logger.error('Failed to send password reset email:', err);
-    // Don't throw error to prevent email enumeration
-    // Email sending failure shouldn't prevent the response
+    logger.error('Email error details:', {
+      code: err.code,
+      message: err.message,
+      recipient: recipientEmail,
+      userId: user.id,
+    });
+    
+    // In production, throw error so it can be handled properly
+    // This ensures email configuration issues are visible
+    if (process.env.NODE_ENV === 'production') {
+      // Log the error but still return success to prevent email enumeration
+      // However, log it prominently so admins can see the issue
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('❌ PRODUCTION EMAIL SEND FAILURE - ŞİFRE SIFIRLAMA');
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error(`User: ${user.email} (ID: ${user.id})`);
+      logger.error(`Recipient: ${recipientEmail}`);
+      logger.error(`Error: ${err.message}`);
+      logger.error(`Token: ${resetToken}`);
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('ACTION REQUIRED: Check EMAIL_USER and EMAIL_PASS secrets in Cloud Run');
+      logger.error('═══════════════════════════════════════════════════════');
+      
+      // Still return success to prevent email enumeration
+      // But the error is logged prominently for admin attention
+      return { message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' };
+    }
+    
+    // In development, just log and continue
+    return { message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' };
   }
-
-  logger.info(`Password reset requested - User login: ${user.email}, Email sent to: ${recipientEmail}`);
-
-  return { message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' };
 };
 
 /**
@@ -340,19 +393,47 @@ const forgotPassword = async (email) => {
 const resendVerification = async (email) => {
   const user = await User.findOne({ where: { email } });
 
-  // E-posta doğrulama sürecini tamamen devre dışı bırakıyoruz
   if (!user) {
     // Bilgi sızmasını engellemek için nötr yanıt
-    return { message: 'Eğer bu e-posta adresi kayıtlıysa, hesap zaten aktif' };
+    return { message: 'Eğer bu e-posta adresi kayıtlıysa, doğrulama e-postası gönderildi' };
   }
 
-  if (!user.is_verified || !user.is_active) {
-    await user.update({ is_verified: true, is_active: true });
+  // If already verified, return success message
+  if (user.is_verified && user.is_active) {
+    return { message: 'E-posta adresiniz zaten doğrulanmış. Doğrudan giriş yapabilirsiniz.' };
   }
 
-  logger.info(`Email verification bypassed for: ${email}`);
+  // Mark old verification tokens as used
+  await EmailVerification.update(
+    { is_used: true },
+    { where: { user_id: user.id, is_used: false } }
+  );
 
-  return { message: 'E-posta doğrulaması gerekmiyor. Doğrudan giriş yapabilirsiniz.' };
+  // Generate new verification token
+  const verificationToken = generateVerificationToken({
+    userId: user.id,
+    email: user.email,
+  });
+
+  // Create new email verification record
+  const expiresAt = getExpirationDate(jwtConfig.verificationTokenExpiry);
+  await EmailVerification.create({
+    user_id: user.id,
+    token: verificationToken,
+    expires_at: expiresAt,
+    is_used: false,
+  });
+
+  // Send verification email
+  try {
+    await sendVerificationEmail(email, verificationToken, user.first_name);
+    logger.info(`Verification email resent to: ${email}`);
+  } catch (emailError) {
+    logger.error(`Failed to resend verification email to ${email}:`, emailError);
+    throw new Error('Doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.');
+  }
+
+  return { message: 'Doğrulama e-postası gönderildi. Lütfen e-posta kutunuzu kontrol edin.' };
 };
 
 /**
