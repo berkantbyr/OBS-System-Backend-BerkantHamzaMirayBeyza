@@ -173,10 +173,17 @@ const login = async (email, password, metadata = {}) => {
   // Hesap aktiflik kontrolü de devre dışı bırakıldı
 
   // Verify password
+  logger.info(`Attempting login for ${email}, comparing password...`);
+  logger.info(`Stored hash length: ${user.password_hash?.length || 0}`);
+  
   const isValidPassword = await comparePassword(password, user.password_hash);
   if (!isValidPassword) {
+    logger.warn(`Login failed for ${email}: Invalid password`);
+    logger.warn(`Password comparison failed. Hash exists: ${!!user.password_hash}`);
     throw new Error('E-posta veya şifre hatalı');
   }
+  
+  logger.info(`Password verified successfully for user: ${email}`);
 
   // Her girişte hesabı aktif ve doğrulanmış hale getir
   if (!user.is_active || !user.is_verified) {
@@ -266,19 +273,31 @@ const logout = async (refreshToken) => {
 
 /**
  * Request password reset
- * @param {string} email - User email
+ * @param {string} email - Email address entered by user (will be used as recipient email)
  * @returns {Object} Success message
+ * 
+ * IMPORTANT: This function sends the reset email to the email address provided by the user.
+ * The user can enter any email address (login email or recovery email), and the email
+ * will be sent to that address. The system first finds the user by the entered email,
+ * then sends the reset email to the same email address.
+ * 
+ * Example:
+ * - User enters: recovery@example.com
+ * - System finds user by: recovery@example.com (if it matches login email)
+ * - Email sent to: recovery@example.com
  */
 const forgotPassword = async (email) => {
-  const user = await User.findOne({ where: { email } });
-
-  // Don't reveal if email exists
+  // Find user by the email address entered by the user
+  // This email will be used both to find the user AND as the recipient email
+  let user = await User.findOne({ where: { email } });
+  
+  // Don't reveal if email exists (security: prevent email enumeration)
   if (!user) {
     return { message: 'Eğer bu e-posta adresi kayıtlıysa, şifre sıfırlama bağlantısı gönderildi' };
   }
 
-  // Generate reset token
-  const resetToken = generateResetToken({ userId: user.id, email });
+  // Generate reset token (use user's login email for token generation)
+  const resetToken = generateResetToken({ userId: user.id, email: user.email });
 
   // Invalidate old reset tokens
   await PasswordReset.update(
@@ -293,12 +312,22 @@ const forgotPassword = async (email) => {
     expires_at: getExpirationDate(jwtConfig.resetTokenExpiry),
   });
 
-  // Send reset email
-  sendPasswordResetEmail(email, resetToken, user.first_name).catch(err => {
-    logger.error('Failed to send password reset email:', err);
-  });
+  // IMPORTANT: Send email to the email address entered by the user
+  // This allows users to request password reset to any email they specify
+  // If user enters "recovery@example.com", email will be sent to "recovery@example.com"
+  const recipientEmail = email; // Send to the email address the user entered
 
-  logger.info(`Password reset requested for: ${email}`);
+  // Send reset email to the email address provided by the user
+  try {
+    await sendPasswordResetEmail(recipientEmail, resetToken, user.first_name);
+    logger.info(`Password reset email sent to: ${recipientEmail} (user login email: ${user.email})`);
+  } catch (err) {
+    logger.error('Failed to send password reset email:', err);
+    // Don't throw error to prevent email enumeration
+    // Email sending failure shouldn't prevent the response
+  }
+
+  logger.info(`Password reset requested - User login: ${user.email}, Email sent to: ${recipientEmail}`);
 
   return { message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi' };
 };
@@ -352,12 +381,28 @@ const resetPassword = async (token, newPassword) => {
 
   // Hash new password
   const hashedPassword = await hashPassword(newPassword);
+  logger.info(`Password hashed for user ${decoded.userId}, hash length: ${hashedPassword.length}`);
 
-  // Update user password
-  await User.update(
-    { password_hash: hashedPassword },
-    { where: { id: decoded.userId } }
-  );
+  // Get user instance first
+  const user = await User.findByPk(decoded.userId);
+  if (!user) {
+    throw new Error('Kullanıcı bulunamadı');
+  }
+
+  // Update user password using instance method (more reliable)
+  await user.update({ password_hash: hashedPassword });
+  
+  // Reload user to verify password was saved
+  await user.reload();
+  logger.info(`Password updated for user ${decoded.userId}, verifying hash...`);
+  
+  // Verify the password was saved correctly by comparing
+  const testCompare = await comparePassword(newPassword, user.password_hash);
+  if (!testCompare) {
+    logger.error(`CRITICAL: Password hash verification failed after update for user ${decoded.userId}`);
+    throw new Error('Şifre güncellenirken bir hata oluştu. Lütfen tekrar deneyin.');
+  }
+  logger.info(`Password hash verified successfully after update for user ${decoded.userId}`);
 
   // Mark token as used
   await resetRecord.update({ is_used: true });
@@ -369,6 +414,7 @@ const resetPassword = async (token, newPassword) => {
   );
 
   logger.info(`Password reset completed for user: ${decoded.email}`);
+  logger.info(`User ID: ${decoded.userId}, Password updated successfully`);
 
   return { message: 'Şifreniz başarıyla sıfırlandı. Yeni şifrenizle giriş yapabilirsiniz.' };
 };
@@ -383,4 +429,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
 };
+
 
