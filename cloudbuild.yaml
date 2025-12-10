@@ -50,9 +50,9 @@ steps:
       - '--max-instances'
       - '10'
       - '--set-env-vars'
-      - 'NODE_ENV=production,FRONTEND_URL=https://obs-frontend-214391529742.europe-west1.run.app,EMAIL_HOST=smtp.gmail.com,EMAIL_PORT=587'
+      - 'NODE_ENV=production,FRONTEND_URL=https://obs-frontend-214391529742.europe-west1.run.app'
       - '--set-secrets'
-      - 'DB_HOST=DB_HOST:latest,DB_USER=DB_USER:latest,DB_PASSWORD=DB_PASSWORD:latest,DB_NAME=DB_NAME:latest,JWT_SECRET=JWT_SECRET:latest,EMAIL_USER=EMAIL_USER:latest,EMAIL_PASS=EMAIL_PASS:latest'
+      - 'DB_HOST=DB_HOST:latest,DB_USER=DB_USER:latest,DB_PASSWORD=DB_PASSWORD:latest,DB_NAME=DB_NAME:latest,JWT_SECRET=JWT_SECRET:latest'
 
 # Store images in Container Registry
 images:
