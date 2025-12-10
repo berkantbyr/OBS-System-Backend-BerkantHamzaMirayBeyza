@@ -1,26 +1,17 @@
-const sgMail = require('@sendgrid/mail');
 const nodemailer = require('nodemailer');
 const emailConfig = require('../config/email');
 const logger = require('../utils/logger');
 
-// SendGrid API Key'i ayarla
-if (emailConfig.sendgridApiKey) {
-  sgMail.setApiKey(emailConfig.sendgridApiKey);
-}
-
-// SMTP transporter (fallback veya development için)
-let transporter = null;
-if (emailConfig.provider === 'smtp' || (!emailConfig.sendgridApiKey && emailConfig.auth?.user)) {
-  transporter = nodemailer.createTransport({
-    host: emailConfig.host,
-    port: emailConfig.port,
-    secure: emailConfig.secure,
-    auth: emailConfig.auth,
-  });
-}
+// Create transporter
+const transporter = nodemailer.createTransport({
+  host: emailConfig.host,
+  port: emailConfig.port,
+  secure: emailConfig.secure,
+  auth: emailConfig.auth,
+});
 
 /**
- * Send email using SendGrid or SMTP
+ * Send email
  * @param {Object} options - Email options
  * @param {string} options.to - Recipient email
  * @param {string} options.subject - Email subject
@@ -31,147 +22,88 @@ const sendEmail = async (options) => {
   try {
     // Debug: Log email configuration status
     logger.info('=== EMAIL CONFIGURATION DEBUG ===');
-    logger.info(`Email Provider: ${emailConfig.provider}`);
-    
-    if (emailConfig.provider === 'sendgrid') {
-      logger.info(`SENDGRID_API_KEY: ${emailConfig.sendgridApiKey ? 'SET (' + emailConfig.sendgridApiKey.substring(0, 7) + '****)' : 'NOT SET'}`);
-      logger.info(`SENDGRID_FROM: ${emailConfig.sendgridFrom || emailConfig.from}`);
-    } else {
-      logger.info(`EMAIL_USER: ${emailConfig.auth?.user ? 'SET (' + emailConfig.auth.user + ')' : 'NOT SET'}`);
-      logger.info(`EMAIL_PASS: ${emailConfig.auth?.pass ? 'SET (' + emailConfig.auth.pass.substring(0, 4) + '****)' : 'NOT SET'}`);
-      logger.info(`EMAIL_HOST: ${emailConfig.host}`);
-      logger.info(`EMAIL_PORT: ${emailConfig.port}`);
-    }
+    logger.info(`EMAIL_USER: ${emailConfig.auth.user ? 'SET (' + emailConfig.auth.user + ')' : 'NOT SET'}`);
+    logger.info(`EMAIL_PASS: ${emailConfig.auth.pass ? 'SET (' + emailConfig.auth.pass.substring(0, 4) + '****)' : 'NOT SET'}`);
+    logger.info(`EMAIL_HOST: ${emailConfig.host}`);
+    logger.info(`EMAIL_PORT: ${emailConfig.port}`);
     logger.info(`EMAIL_FROM: ${emailConfig.from}`);
     logger.info('================================');
     
     // Check if email is configured
-    if (emailConfig.provider === 'sendgrid') {
-      if (!emailConfig.sendgridApiKey) {
-        logger.error('═══════════════════════════════════════════════════════');
-        logger.error('❌ SENDGRID API KEY NOT CONFIGURED');
-        logger.error('═══════════════════════════════════════════════════════');
-        logger.error('SENDGRID_API_KEY must be set in environment variables');
-        logger.error(`Attempted to send email to: ${options.to}`);
-        logger.error(`Subject: ${options.subject}`);
-        
-        // In development, log token instead
-        if (process.env.NODE_ENV === 'development') {
-          const tokenMatch = options.html?.match(/<div class="token">([^<]+)<\/div>/);
-          if (tokenMatch) {
-            const token = tokenMatch[1];
-            logger.info('═══════════════════════════════════════════════════════');
-            logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
-            logger.info('═══════════════════════════════════════════════════════');
-            logger.info(`E-posta: ${options.to}`);
-            logger.info(`Token: ${token}`);
-            logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
-            logger.info('═══════════════════════════════════════════════════════');
-          }
-          return { messageId: 'dev-mode-no-email' };
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('❌ EMAIL SERVICE NOT CONFIGURED');
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('EMAIL_USER and EMAIL_PASS must be set in environment variables');
+      logger.error(`Attempted to send email to: ${options.to}`);
+      logger.error(`Subject: ${options.subject}`);
+      
+      // In development, we can log the reset token instead of sending email
+      if (process.env.NODE_ENV === 'development') {
+        // Extract token from email content
+        const tokenMatch = options.html?.match(/<div class="token">([^<]+)<\/div>/);
+        if (tokenMatch) {
+          const token = tokenMatch[1];
+          logger.info('═══════════════════════════════════════════════════════');
+          logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
+          logger.info('═══════════════════════════════════════════════════════');
+          logger.info(`E-posta: ${options.to}`);
+          logger.info(`Token: ${token}`);
+          logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
+          logger.info('═══════════════════════════════════════════════════════');
         }
-        
-        const error = new Error('SendGrid API Key is not configured. SENDGRID_API_KEY must be set in Cloud Run secrets.');
-        error.code = 'SENDGRID_NOT_CONFIGURED';
-        throw error;
+        return { messageId: 'dev-mode-no-email' };
       }
       
-      // Send using SendGrid
-      const msg = {
-        to: options.to,
-        from: emailConfig.sendgridFrom || emailConfig.from,
-        subject: options.subject,
-        html: options.html,
-        text: options.text || options.html?.replace(/<[^>]*>/g, ''), // Strip HTML for text version
-      };
-      
-      logger.info(`Attempting to send email via SendGrid to: ${options.to}`);
-      logger.info(`Email subject: ${options.subject}`);
-      
-      const response = await sgMail.send(msg);
-      
-      logger.info(`✅ Email sent successfully via SendGrid to ${options.to}`);
-      logger.info(`SendGrid response: ${JSON.stringify(response[0]?.headers || response)}`);
-      
-      return {
-        messageId: response[0]?.headers?.['x-message-id'] || 'sendgrid-sent',
-        response: response,
-      };
-    } else {
-      // Fallback to SMTP
-      if (!emailConfig.auth?.user || !emailConfig.auth?.pass) {
-        logger.error('═══════════════════════════════════════════════════════');
-        logger.error('❌ EMAIL SERVICE NOT CONFIGURED');
-        logger.error('═══════════════════════════════════════════════════════');
-        logger.error('EMAIL_USER and EMAIL_PASS must be set in environment variables');
-        logger.error(`Attempted to send email to: ${options.to}`);
-        logger.error(`Subject: ${options.subject}`);
-        
-        if (process.env.NODE_ENV === 'development') {
-          const tokenMatch = options.html?.match(/<div class="token">([^<]+)<\/div>/);
-          if (tokenMatch) {
-            const token = tokenMatch[1];
-            logger.info('═══════════════════════════════════════════════════════');
-            logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
-            logger.info('═══════════════════════════════════════════════════════');
-            logger.info(`E-posta: ${options.to}`);
-            logger.info(`Token: ${token}`);
-            logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
-            logger.info('═══════════════════════════════════════════════════════');
-          }
-          return { messageId: 'dev-mode-no-email' };
-        }
-        
-        const error = new Error('Email service is not configured. EMAIL_USER and EMAIL_PASS must be set in Cloud Run secrets.');
-        error.code = 'EMAIL_NOT_CONFIGURED';
-        throw error;
-      }
-      
-      const mailOptions = {
-        from: emailConfig.from,
-        to: options.to,
-        subject: options.subject,
-        html: options.html,
-        text: options.text,
-      };
-      
-      logger.info(`Attempting to send email via SMTP to: ${options.to}`);
-      logger.info(`Email subject: ${options.subject}`);
-      
-      const info = await transporter.sendMail(mailOptions);
-      logger.info(`✅ Email sent successfully via SMTP to ${options.to}: ${info.messageId}`);
-      logger.info(`Email response: ${JSON.stringify(info.response)}`);
-      return info;
+      // In production, log error but don't throw - let the calling function handle it
+      // This allows registration to succeed even if email can't be sent
+      logger.error('═══════════════════════════════════════════════════════');
+      logger.error('ACTION REQUIRED: Set EMAIL_USER and EMAIL_PASS secrets in Cloud Run');
+      logger.error('See PRODUCTION_EMAIL_SETUP.md for instructions');
+      logger.error('═══════════════════════════════════════════════════════');
+      // Don't throw - return error object instead so calling function can handle gracefully
+      const error = new Error('Email service is not configured. EMAIL_USER and EMAIL_PASS must be set in Cloud Run secrets.');
+      error.code = 'EMAIL_NOT_CONFIGURED';
+      throw error;
     }
+
+    const mailOptions = {
+      from: emailConfig.from,
+      to: options.to,
+      subject: options.subject,
+      html: options.html,
+      text: options.text,
+    };
+
+    logger.info(`Attempting to send email to: ${options.to}`);
+    logger.info(`Email subject: ${options.subject}`);
+    const info = await transporter.sendMail(mailOptions);
+    logger.info(`✅ Email sent successfully to ${options.to}: ${info.messageId}`);
+    logger.info(`Email response: ${JSON.stringify(info.response)}`);
+    return info;
   } catch (error) {
     logger.error('Email send error:', error);
     logger.error('Error details:', {
       code: error.code,
-      message: error.message,
+      command: error.command,
       response: error.response,
-      responseCode: error.response?.statusCode || error.responseCode,
+      responseCode: error.responseCode,
+      message: error.message,
     });
     
     // Log more details about the error
-    if (error.code === 'SENDGRID_NOT_CONFIGURED') {
-      logger.error('SendGrid API Key is not configured. Check SENDGRID_API_KEY in environment variables.');
-    } else if (error.code === 'EAUTH') {
+    if (error.code === 'EAUTH') {
       logger.error('Email authentication failed. Check EMAIL_USER and EMAIL_PASS in environment variables.');
       logger.error('Make sure you are using an App Password for Gmail, not your regular password.');
     } else if (error.code === 'ECONNECTION' || error.code === 'ETIMEDOUT') {
       logger.error('Email server connection failed. Check EMAIL_HOST and EMAIL_PORT.');
-    } else if (error.response?.statusCode === 401) {
-      logger.error('SendGrid authentication failed. Invalid API Key.');
-    } else if (error.response?.statusCode === 403) {
-      logger.error('SendGrid authorization failed. Check API Key permissions.');
-    } else if (error.response?.statusCode === 400) {
-      logger.error('SendGrid request failed. Check email format and from address.');
-      logger.error('Make sure the from email is verified in SendGrid.');
+    } else if (error.responseCode === 535) {
+      logger.error('Gmail authentication failed. Invalid credentials or App Password required.');
     }
     
     // In production, provide more helpful error messages
     if (process.env.NODE_ENV === 'production') {
-      const errorMessage = error.code === 'SENDGRID_NOT_CONFIGURED' || error.response?.statusCode === 401
+      const errorMessage = error.code === 'EAUTH' 
         ? 'Email servisi yapılandırma hatası. Lütfen sistem yöneticisine başvurun.'
         : 'Email gönderilemedi. Lütfen daha sonra tekrar deneyin.';
       throw new Error(errorMessage);
@@ -319,3 +251,4 @@ module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
 };
+
