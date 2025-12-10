@@ -62,12 +62,7 @@ const updateProfilePicture = async (req, res, next) => {
       });
     }
     
-    // Mutlak URL üret: API_BASE_URL (örn. https://obs-api-...run.app/api/v1) veya BACKEND_PUBLIC_URL verilmişse onu kullan
-    const apiBase = process.env.API_BASE_URL || process.env.BACKEND_PUBLIC_URL || '';
-    const uploadsPath = `/uploads/${req.file.filename}`;
-    const pictureUrl = apiBase
-      ? `${apiBase.replace(/\\/api\\/v1.*$/, '')}${uploadsPath}`
-      : uploadsPath;
+    const pictureUrl = `/uploads/${req.file.filename}`;
     const user = await userService.updateProfilePicture(req.user.id, pictureUrl);
     
     res.status(200).json({
