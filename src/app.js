@@ -1,8 +1,13 @@
-require('dotenv').config();
+const path = require('path');
+
+// Önce env.example'ı oku (varsayılan değerler)
+require('dotenv').config({ path: path.join(__dirname, '../env.example') });
+
+// Sonra .env'i oku (varsa üzerine yazar - SendGrid gibi özel ayarlar)
+require('dotenv').config({ path: path.join(__dirname, '../.env'), override: true });
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const os = require('os');
 const db = require('./models');
 const routes = require('./routes');

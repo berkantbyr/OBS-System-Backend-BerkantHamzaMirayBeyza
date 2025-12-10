@@ -1,17 +1,21 @@
-const nodemailer = require('nodemailer');
-const emailConfig = require('../config/email');
+const sgMail = require('@sendgrid/mail');
 const logger = require('../utils/logger');
 
-// Create transporter
-const transporter = nodemailer.createTransport({
-  host: emailConfig.host,
-  port: emailConfig.port,
-  secure: emailConfig.secure,
-  auth: emailConfig.auth,
-});
+// SendGrid API Key'i ayarla
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@university.edu';
+const SENDGRID_FROM_NAME = process.env.SENDGRID_FROM_NAME || 'Üniversite OBS';
+
+// SendGrid'i yapılandır
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  logger.info('✅ SendGrid API Key configured');
+} else {
+  logger.warn('⚠️ SENDGRID_API_KEY is not set. Email sending will not work.');
+}
 
 /**
- * Send email
+ * Send email using SendGrid HTTP API
  * @param {Object} options - Email options
  * @param {string} options.to - Recipient email
  * @param {string} options.subject - Email subject
@@ -20,60 +24,60 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (options) => {
   try {
-    // Debug: Log email configuration status
-    logger.info('=== EMAIL CONFIGURATION DEBUG ===');
-    logger.info(`EMAIL_USER: ${emailConfig.auth.user ? 'SET (' + emailConfig.auth.user + ')' : 'NOT SET'}`);
-    logger.info(`EMAIL_PASS: ${emailConfig.auth.pass ? 'SET (' + emailConfig.auth.pass.substring(0, 4) + '****)' : 'NOT SET'}`);
-    logger.info(`EMAIL_HOST: ${emailConfig.host}`);
-    logger.info(`EMAIL_PORT: ${emailConfig.port}`);
-    logger.info(`EMAIL_FROM: ${emailConfig.from}`);
-    logger.info('================================');
+    logger.info('=== SENDGRID EMAIL DEBUG ===');
+    logger.info(`SENDGRID_API_KEY: ${SENDGRID_API_KEY ? 'SET' : 'NOT SET'}`);
+    logger.info(`SENDGRID_FROM_EMAIL: ${SENDGRID_FROM_EMAIL}`);
+    logger.info(`Recipient: ${options.to}`);
+    logger.info(`Subject: ${options.subject}`);
+    logger.info('============================');
     
-    // Check if email is configured
-    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
-      logger.warn('Email not configured. EMAIL_USER and EMAIL_PASS must be set in .env file.');
-      logger.warn('Email would be sent to:', options.to, 'Subject:', options.subject);
-      // In development, we can log the reset token instead of sending email
+    // Check if SendGrid is configured
+    if (!SENDGRID_API_KEY) {
+      logger.warn('SendGrid not configured. SENDGRID_API_KEY must be set in .env file.');
+      
+      // In development, log the verification URL if present
       if (process.env.NODE_ENV === 'development') {
-        // Extract token from email content
-        const tokenMatch = options.html?.match(/<div class="token">([^<]+)<\/div>/);
-        if (tokenMatch) {
-          const token = tokenMatch[1];
+        const verifyMatch = options.html?.match(/verify-email\/([^"<\s]+)/);
+        if (verifyMatch) {
           logger.info('═══════════════════════════════════════════════════════');
-          logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
+          logger.info('📧 EMAIL DOĞRULAMA LİNKİ (Development Mode)');
           logger.info('═══════════════════════════════════════════════════════');
           logger.info(`E-posta: ${options.to}`);
-          logger.info(`Token: ${token}`);
-          logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
+          logger.info(`Doğrulama URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${verifyMatch[1]}`);
           logger.info('═══════════════════════════════════════════════════════');
         }
       }
-      // Don't throw error in development to allow testing
+      
       if (process.env.NODE_ENV === 'production') {
         throw new Error('Email service is not configured');
       }
       return { messageId: 'dev-mode-no-email' };
     }
 
-    const mailOptions = {
-      from: emailConfig.from,
+    const msg = {
       to: options.to,
+      from: {
+        email: SENDGRID_FROM_EMAIL,
+        name: SENDGRID_FROM_NAME,
+      },
       subject: options.subject,
       html: options.html,
-      text: options.text,
+      text: options.text || options.html.replace(/<[^>]*>/g, ''),
     };
 
-    logger.info(`Attempting to send email to: ${options.to}`);
-    logger.info(`Email subject: ${options.subject}`);
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`✅ Email sent successfully to ${options.to}: ${info.messageId}`);
-    logger.info(`Email response: ${JSON.stringify(info.response)}`);
-    return info;
+    logger.info(`Sending email via SendGrid to: ${options.to}`);
+    const response = await sgMail.send(msg);
+    logger.info(`✅ Email sent successfully to ${options.to}`);
+    logger.info(`SendGrid Response Status: ${response[0].statusCode}`);
+    
+    return { 
+      messageId: response[0].headers['x-message-id'] || 'sendgrid-sent',
+      statusCode: response[0].statusCode 
+    };
   } catch (error) {
-    logger.error('Email send error:', error);
-    // Log more details about the error
-    if (error.code === 'EAUTH') {
-      logger.error('Email authentication failed. Check EMAIL_USER and EMAIL_PASS in .env');
+    logger.error('SendGrid email send error:', error);
+    if (error.response) {
+      logger.error('SendGrid API Error:', error.response.body);
     }
     throw error;
   }
@@ -81,24 +85,29 @@ const sendEmail = async (options) => {
 
 /**
  * Send verification email
- * @param {string} to - Recipient email
- * @param {string} token - Verification token
- * @param {string} firstName - User's first name
  */
 const sendVerificationEmail = async (to, token, firstName) => {
-  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${token}`;
+  const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
+  
+  logger.info('═══════════════════════════════════════════════════════');
+  logger.info('📧 EMAIL DOĞRULAMA LİNKİ');
+  logger.info(`E-posta: ${to}`);
+  logger.info(`URL: ${verificationUrl}`);
+  logger.info('═══════════════════════════════════════════════════════');
   
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="utf-8">
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+        .content { background: #ffffff; padding: 40px 30px; border-radius: 0 0 12px 12px; }
+        .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white !important; padding: 15px 40px; text-decoration: none; border-radius: 8px; margin: 25px 0; font-weight: bold; }
         .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+        .link-box { background: #f8f9fa; padding: 15px; border-radius: 8px; word-break: break-all; font-size: 14px; }
       </style>
     </head>
     <body>
@@ -108,17 +117,16 @@ const sendVerificationEmail = async (to, token, firstName) => {
         </div>
         <div class="content">
           <h2>Merhaba ${firstName},</h2>
-          <p>Üniversite Öğrenci Bilgi Sistemi'ne hoş geldiniz! Hesabınızı aktifleştirmek için lütfen aşağıdaki butona tıklayın.</p>
+          <p>Üniversite Öğrenci Bilgi Sistemi'ne hoş geldiniz! Hesabınızı aktifleştirmek için aşağıdaki butona tıklayın.</p>
           <div style="text-align: center;">
-            <a href="${verificationUrl}" class="button">E-postamı Doğrula</a>
+            <a href="${verificationUrl}" class="button">✉️ E-postamı Doğrula</a>
           </div>
-          <p>Veya aşağıdaki bağlantıyı tarayıcınıza kopyalayın:</p>
-          <p style="background: #eee; padding: 10px; border-radius: 4px; word-break: break-all;">${verificationUrl}</p>
-          <p>Bu bağlantı 24 saat geçerlidir.</p>
-          <p>Eğer bu hesabı siz oluşturmadıysanız, bu e-postayı görmezden gelebilirsiniz.</p>
+          <p>Veya bu linki tarayıcınıza yapıştırın:</p>
+          <div class="link-box">${verificationUrl}</div>
+          <p style="color: #666; font-size: 14px;">⏰ Bu link 24 saat geçerlidir.</p>
         </div>
         <div class="footer">
-          <p>© 2024 Üniversite OBS. Tüm hakları saklıdır.</p>
+          <p>© ${new Date().getFullYear()} Üniversite OBS</p>
         </div>
       </div>
     </body>
@@ -127,45 +135,39 @@ const sendVerificationEmail = async (to, token, firstName) => {
 
   return sendEmail({
     to,
-    subject: 'E-posta Adresinizi Doğrulayın - Üniversite OBS',
+    subject: '✉️ E-posta Adresinizi Doğrulayın - Üniversite OBS',
     html,
   });
 };
 
 /**
  * Send password reset email
- * @param {string} to - Recipient email
- * @param {string} token - Reset token
- * @param {string} firstName - User's first name
  */
 const sendPasswordResetEmail = async (to, token, firstName) => {
   const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
   
-  // In development mode, always log the token
-  if (process.env.NODE_ENV === 'development') {
-    logger.info('═══════════════════════════════════════════════════════');
-    logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
-    logger.info('═══════════════════════════════════════════════════════');
-    logger.info(`E-posta: ${to}`);
-    logger.info(`Token: ${token}`);
-    logger.info(`Reset URL: ${resetUrl}`);
-    logger.info('═══════════════════════════════════════════════════════');
-  }
+  logger.info('═══════════════════════════════════════════════════════');
+  logger.info('🔐 ŞİFRE SIFIRLAMA KODU');
+  logger.info(`E-posta: ${to}`);
+  logger.info(`Token: ${token}`);
+  logger.info(`URL: ${resetUrl}`);
+  logger.info('═══════════════════════════════════════════════════════');
   
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta charset="utf-8">
       <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
         .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-        .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 12px 12px 0 0; }
+        .content { background: #ffffff; padding: 40px 30px; border-radius: 0 0 12px 12px; }
+        .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white !important; padding: 15px 40px; text-decoration: none; border-radius: 8px; margin: 25px 0; font-weight: bold; }
         .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
-        .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-top: 15px; }
-        .token-box { background: #fff; border: 2px solid #667eea; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }
-        .token { font-size: 24px; font-weight: bold; color: #667eea; letter-spacing: 3px; font-family: monospace; }
+        .token-box { background: #f8f9fa; border: 2px solid #667eea; padding: 25px; border-radius: 12px; text-align: center; margin: 25px 0; }
+        .token { font-size: 28px; font-weight: bold; color: #667eea; letter-spacing: 4px; font-family: monospace; }
+        .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin-top: 20px; }
       </style>
     </head>
     <body>
@@ -175,30 +177,21 @@ const sendPasswordResetEmail = async (to, token, firstName) => {
         </div>
         <div class="content">
           <h2>Merhaba ${firstName},</h2>
-          <p>Şifrenizi sıfırlamak için bir talep aldık. Aşağıdaki kodu kullanarak şifrenizi sıfırlayabilirsiniz:</p>
-          
+          <p>Şifrenizi sıfırlamak için bir talep aldık. Aşağıdaki kodu kullanın:</p>
           <div class="token-box">
-            <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Şifre Sıfırlama Kodu:</p>
+            <p style="margin: 0 0 10px 0; color: #666;">Şifre Sıfırlama Kodu:</p>
             <div class="token">${token}</div>
           </div>
-          
-          <p>Bu kodu şifre sıfırlama sayfasına girerek yeni şifrenizi belirleyebilirsiniz.</p>
-          
-          <div style="text-align: center; margin: 20px 0;">
-            <a href="${resetUrl}" class="button">Şifremi Sıfırla</a>
+          <div style="text-align: center;">
+            <a href="${resetUrl}" class="button">🔓 Şifremi Sıfırla</a>
           </div>
-          
-          <p style="font-size: 12px; color: #666;">Veya aşağıdaki bağlantıyı kullanabilirsiniz:</p>
-          <p style="background: #eee; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">${resetUrl}</p>
-          
-          <p style="font-size: 12px; color: #666;">Bu kod 24 saat geçerlidir.</p>
-          
+          <p style="color: #666; font-size: 14px;">⏰ Bu kod 24 saat geçerlidir.</p>
           <div class="warning">
-            <strong>⚠️ Uyarı:</strong> Eğer bu talebi siz yapmadıysanız, lütfen bu e-postayı görmezden gelin ve hesabınızın güvenliğini kontrol edin.
+            <strong>⚠️ Uyarı:</strong> Bu talebi siz yapmadıysanız, bu e-postayı görmezden gelin.
           </div>
         </div>
         <div class="footer">
-          <p>© 2024 Üniversite OBS. Tüm hakları saklıdır.</p>
+          <p>© ${new Date().getFullYear()} Üniversite OBS</p>
         </div>
       </div>
     </body>
@@ -207,7 +200,7 @@ const sendPasswordResetEmail = async (to, token, firstName) => {
 
   return sendEmail({
     to,
-    subject: 'Şifre Sıfırlama Talebi - Üniversite OBS',
+    subject: '🔐 Şifre Sıfırlama Talebi - Üniversite OBS',
     html,
   });
 };
@@ -217,4 +210,3 @@ module.exports = {
   sendVerificationEmail,
   sendPasswordResetEmail,
 };
-
