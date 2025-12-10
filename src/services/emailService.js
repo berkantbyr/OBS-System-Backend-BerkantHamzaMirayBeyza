@@ -20,6 +20,41 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (options) => {
   try {
+    // Debug: Log email configuration status
+    logger.info('=== EMAIL CONFIGURATION DEBUG ===');
+    logger.info(`EMAIL_USER: ${emailConfig.auth.user ? 'SET (' + emailConfig.auth.user + ')' : 'NOT SET'}`);
+    logger.info(`EMAIL_PASS: ${emailConfig.auth.pass ? 'SET (' + emailConfig.auth.pass.substring(0, 4) + '****)' : 'NOT SET'}`);
+    logger.info(`EMAIL_HOST: ${emailConfig.host}`);
+    logger.info(`EMAIL_PORT: ${emailConfig.port}`);
+    logger.info(`EMAIL_FROM: ${emailConfig.from}`);
+    logger.info('================================');
+    
+    // Check if email is configured
+    if (!emailConfig.auth.user || !emailConfig.auth.pass) {
+      logger.warn('Email not configured. EMAIL_USER and EMAIL_PASS must be set in .env file.');
+      logger.warn('Email would be sent to:', options.to, 'Subject:', options.subject);
+      // In development, we can log the reset token instead of sending email
+      if (process.env.NODE_ENV === 'development') {
+        // Extract token from email content
+        const tokenMatch = options.html?.match(/<div class="token">([^<]+)<\/div>/);
+        if (tokenMatch) {
+          const token = tokenMatch[1];
+          logger.info('═══════════════════════════════════════════════════════');
+          logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
+          logger.info('═══════════════════════════════════════════════════════');
+          logger.info(`E-posta: ${options.to}`);
+          logger.info(`Token: ${token}`);
+          logger.info(`Reset URL: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`);
+          logger.info('═══════════════════════════════════════════════════════');
+        }
+      }
+      // Don't throw error in development to allow testing
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('Email service is not configured');
+      }
+      return { messageId: 'dev-mode-no-email' };
+    }
+
     const mailOptions = {
       from: emailConfig.from,
       to: options.to,
@@ -28,11 +63,18 @@ const sendEmail = async (options) => {
       text: options.text,
     };
 
+    logger.info(`Attempting to send email to: ${options.to}`);
+    logger.info(`Email subject: ${options.subject}`);
     const info = await transporter.sendMail(mailOptions);
-    logger.info(`Email sent: ${info.messageId}`);
+    logger.info(`✅ Email sent successfully to ${options.to}: ${info.messageId}`);
+    logger.info(`Email response: ${JSON.stringify(info.response)}`);
     return info;
   } catch (error) {
     logger.error('Email send error:', error);
+    // Log more details about the error
+    if (error.code === 'EAUTH') {
+      logger.error('Email authentication failed. Check EMAIL_USER and EMAIL_PASS in .env');
+    }
     throw error;
   }
 };
@@ -97,7 +139,18 @@ const sendVerificationEmail = async (to, token, firstName) => {
  * @param {string} firstName - User's first name
  */
 const sendPasswordResetEmail = async (to, token, firstName) => {
-  const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${token}`;
+  const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
+  
+  // In development mode, always log the token
+  if (process.env.NODE_ENV === 'development') {
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info('🔐 ŞİFRE SIFIRLAMA KODU (Development Mode)');
+    logger.info('═══════════════════════════════════════════════════════');
+    logger.info(`E-posta: ${to}`);
+    logger.info(`Token: ${token}`);
+    logger.info(`Reset URL: ${resetUrl}`);
+    logger.info('═══════════════════════════════════════════════════════');
+  }
   
   const html = `
     <!DOCTYPE html>
@@ -111,6 +164,8 @@ const sendPasswordResetEmail = async (to, token, firstName) => {
         .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
         .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
         .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-top: 15px; }
+        .token-box { background: #fff; border: 2px solid #667eea; padding: 20px; border-radius: 8px; text-align: center; margin: 20px 0; }
+        .token { font-size: 24px; font-weight: bold; color: #667eea; letter-spacing: 3px; font-family: monospace; }
       </style>
     </head>
     <body>
@@ -120,13 +175,24 @@ const sendPasswordResetEmail = async (to, token, firstName) => {
         </div>
         <div class="content">
           <h2>Merhaba ${firstName},</h2>
-          <p>Şifrenizi sıfırlamak için bir talep aldık. Şifrenizi sıfırlamak için aşağıdaki butona tıklayın.</p>
-          <div style="text-align: center;">
+          <p>Şifrenizi sıfırlamak için bir talep aldık. Aşağıdaki kodu kullanarak şifrenizi sıfırlayabilirsiniz:</p>
+          
+          <div class="token-box">
+            <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Şifre Sıfırlama Kodu:</p>
+            <div class="token">${token}</div>
+          </div>
+          
+          <p>Bu kodu şifre sıfırlama sayfasına girerek yeni şifrenizi belirleyebilirsiniz.</p>
+          
+          <div style="text-align: center; margin: 20px 0;">
             <a href="${resetUrl}" class="button">Şifremi Sıfırla</a>
           </div>
-          <p>Veya aşağıdaki bağlantıyı tarayıcınıza kopyalayın:</p>
-          <p style="background: #eee; padding: 10px; border-radius: 4px; word-break: break-all;">${resetUrl}</p>
-          <p>Bu bağlantı 24 saat geçerlidir.</p>
+          
+          <p style="font-size: 12px; color: #666;">Veya aşağıdaki bağlantıyı kullanabilirsiniz:</p>
+          <p style="background: #eee; padding: 10px; border-radius: 4px; word-break: break-all; font-size: 12px;">${resetUrl}</p>
+          
+          <p style="font-size: 12px; color: #666;">Bu kod 24 saat geçerlidir.</p>
+          
           <div class="warning">
             <strong>⚠️ Uyarı:</strong> Eğer bu talebi siz yapmadıysanız, lütfen bu e-postayı görmezden gelin ve hesabınızın güvenliğini kontrol edin.
           </div>

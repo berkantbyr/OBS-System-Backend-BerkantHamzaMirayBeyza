@@ -58,14 +58,8 @@ module.exports = (sequelize, DataTypes) => {
     createdAt: 'created_at',
     updatedAt: 'updated_at',
     indexes: [
-      {
-        unique: true,
-        fields: ['employee_number'],
-      },
-      {
-        unique: true,
-        fields: ['user_id'],
-      },
+      // employee_number ve user_id için unique index zaten field tanımlarında var (unique: true)
+      // Bu yüzden burada tekrar tanımlamaya gerek yok
       {
         fields: ['department_id'],
       },

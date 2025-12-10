@@ -11,14 +11,11 @@ const patterns = {
 // Registration validation schema
 const registerSchema = Joi.object({
   email: Joi.string()
-    .trim()
-    .lowercase()
     .email()
     .required()
     .messages({
       'string.email': 'Geçerli bir e-posta adresi giriniz',
       'any.required': 'E-posta adresi zorunludur',
-      'string.empty': 'E-posta adresi zorunludur',
     }),
   password: Joi.string()
     .min(8)
@@ -101,14 +98,11 @@ const registerSchema = Joi.object({
 // Login validation schema
 const loginSchema = Joi.object({
   email: Joi.string()
-    .trim()
-    .lowercase()
     .email()
     .required()
     .messages({
       'string.email': 'Geçerli bir e-posta adresi giriniz',
       'any.required': 'E-posta adresi zorunludur',
-      'string.empty': 'E-posta adresi zorunludur',
     }),
   password: Joi.string()
     .required()
@@ -172,14 +166,11 @@ const passwordChangeSchema = Joi.object({
 // Forgot password validation schema
 const forgotPasswordSchema = Joi.object({
   email: Joi.string()
-    .trim()
-    .lowercase()
     .email()
     .required()
     .messages({
       'string.email': 'Geçerli bir e-posta adresi giriniz',
       'any.required': 'E-posta adresi zorunludur',
-      'string.empty': 'E-posta adresi zorunludur',
     }),
 });
 
