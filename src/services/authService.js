@@ -69,15 +69,16 @@ const register = async (userData) => {
   const transaction = await db.sequelize.transaction();
 
   try {
-    // Create user - Email doğrulaması aktif
+    // Create user
     const user = await User.create({
       email,
       password_hash: hashedPassword,
       role,
       first_name: firstName,
       last_name: lastName,
-      is_active: false, // Email doğrulanana kadar aktif değil
-      is_verified: false, // Email doğrulanmamış
+      // Email doğrulamasını devre dışı bıraktık
+      is_active: true,
+      is_verified: true,
     }, { transaction });
 
     // Create role-specific record
@@ -96,35 +97,13 @@ const register = async (userData) => {
       }, { transaction });
     }
 
-    // Generate email verification token
-    const verificationToken = generateVerificationToken({ 
-      userId: user.id, 
-      email: user.email 
-    });
-
-    // Save verification token to database
-    await EmailVerification.create({
-      user_id: user.id,
-      token: verificationToken,
-      expires_at: getExpirationDate(jwtConfig.verificationTokenExpiry),
-    }, { transaction });
-
     await transaction.commit();
 
-    // Send verification email (after commit)
-    try {
-      await sendVerificationEmail(email, verificationToken, firstName);
-      logger.info(`Verification email sent to: ${email}`);
-    } catch (emailError) {
-      logger.error(`Failed to send verification email to ${email}:`, emailError);
-    }
-
-    logger.info(`New user registered: ${email} (${role}) - Awaiting email verification`);
+    logger.info(`New user registered: ${email} (${role})`);
 
     return {
-      message: 'Kayıt başarılı! E-posta adresinize gönderilen doğrulama linkine tıklayarak hesabınızı aktifleştirin.',
+      message: 'Kayıt başarılı.',
       user: user.toSafeObject(),
-      requiresVerification: true,
     };
   } catch (error) {
     await transaction.rollback();
@@ -190,15 +169,8 @@ const login = async (email, password, metadata = {}) => {
     throw new Error('E-posta veya şifre hatalı');
   }
 
-  // Email doğrulama kontrolü
-  if (!user.is_verified) {
-    throw new Error('E-posta adresinizi doğrulamanız gerekiyor. Lütfen e-postanızı kontrol edin.');
-  }
-
-  // Hesap aktiflik kontrolü
-  if (!user.is_active) {
-    throw new Error('Hesabınız aktif değil. Lütfen e-posta doğrulamasını tamamlayın.');
-  }
+  // Email doğrulamasını zorunlu tutma
+  // Hesap aktiflik kontrolü de devre dışı bırakıldı
 
   // Verify password
   logger.info(`Attempting login for ${email}, comparing password...`);
@@ -212,6 +184,11 @@ const login = async (email, password, metadata = {}) => {
   }
   
   logger.info(`Password verified successfully for user: ${email}`);
+
+  // Her girişte hesabı aktif ve doğrulanmış hale getir
+  if (!user.is_active || !user.is_verified) {
+    await user.update({ is_active: true, is_verified: true });
+  }
 
   // Generate tokens
   const tokenPayload = { 
@@ -363,42 +340,19 @@ const forgotPassword = async (email) => {
 const resendVerification = async (email) => {
   const user = await User.findOne({ where: { email } });
 
+  // E-posta doğrulama sürecini tamamen devre dışı bırakıyoruz
   if (!user) {
-    return { message: 'Eğer bu e-posta adresi kayıtlıysa, doğrulama linki gönderildi' };
+    // Bilgi sızmasını engellemek için nötr yanıt
+    return { message: 'Eğer bu e-posta adresi kayıtlıysa, hesap zaten aktif' };
   }
 
-  if (user.is_verified) {
-    return { message: 'E-posta adresiniz zaten doğrulanmış. Giriş yapabilirsiniz.' };
+  if (!user.is_verified || !user.is_active) {
+    await user.update({ is_verified: true, is_active: true });
   }
 
-  // Invalidate old verification tokens
-  await EmailVerification.update(
-    { is_used: true },
-    { where: { user_id: user.id, is_used: false } }
-  );
+  logger.info(`Email verification bypassed for: ${email}`);
 
-  // Generate new verification token
-  const verificationToken = generateVerificationToken({ 
-    userId: user.id, 
-    email: user.email 
-  });
-
-  // Save new verification token
-  await EmailVerification.create({
-    user_id: user.id,
-    token: verificationToken,
-    expires_at: getExpirationDate(jwtConfig.verificationTokenExpiry),
-  });
-
-  // Send verification email
-  try {
-    await sendVerificationEmail(email, verificationToken, user.first_name);
-    logger.info(`Verification email resent to: ${email}`);
-  } catch (emailError) {
-    logger.error(`Failed to resend verification email to ${email}:`, emailError);
-  }
-
-  return { message: 'Doğrulama linki e-posta adresinize gönderildi.' };
+  return { message: 'E-posta doğrulaması gerekmiyor. Doğrudan giriş yapabilirsiniz.' };
 };
 
 /**
