@@ -112,28 +112,56 @@ const register = async (userData) => {
     }, { transaction });
 
     await transaction.commit();
+    
+    logger.info(`New user registered: ${email} (${role})`);
 
     // Send verification email (outside transaction to avoid rollback on email failure)
+    // Email gönderimi transaction dışında yapılıyor, böylece email hatası kullanıcı kaydını etkilemez
+    let emailSent = false;
     try {
       await sendVerificationEmail(email, verificationToken, firstName);
       logger.info(`Verification email sent to: ${email}`);
+      emailSent = true;
     } catch (emailError) {
       // Log email error but don't fail registration
+      // Transaction zaten commit edildi, rollback yapılamaz
       logger.error(`Failed to send verification email to ${email}:`, emailError);
-      // In production, you might want to throw this error
+      logger.error('Email error details:', {
+        code: emailError.code,
+        message: emailError.message,
+        userId: user.id,
+        email: email,
+      });
+      
+      // Production'da email gönderilemezse, kullanıcıya bilgi ver ama kayıt başarılı olsun
+      // Kullanıcı daha sonra "resend verification" kullanabilir
       if (process.env.NODE_ENV === 'production') {
-        throw new Error('Kayıt başarılı ancak doğrulama e-postası gönderilemedi. Lütfen daha sonra tekrar deneyin.');
+        logger.error('═══════════════════════════════════════════════════════');
+        logger.error('❌ PRODUCTION EMAIL SEND FAILURE - KAYIT');
+        logger.error('═══════════════════════════════════════════════════════');
+        logger.error(`User: ${email} (ID: ${user.id})`);
+        logger.error(`Error: ${emailError.message}`);
+        logger.error(`Token: ${verificationToken}`);
+        logger.error('═══════════════════════════════════════════════════════');
+        logger.error('ACTION REQUIRED: Check EMAIL_USER and EMAIL_PASS secrets in Cloud Run');
+        logger.error('User can use "resend verification" to get email later');
+        logger.error('═══════════════════════════════════════════════════════');
       }
     }
 
-    logger.info(`New user registered: ${email} (${role})`);
-
+    // Kullanıcı kaydı başarılı, email gönderilse de gönderilmese de
     return {
-      message: 'Kayıt başarılı. Lütfen e-posta adresinizi doğrulayın.',
+      message: emailSent 
+        ? 'Kayıt başarılı. Lütfen e-posta adresinizi doğrulayın.'
+        : 'Kayıt başarılı. Doğrulama e-postası gönderilemedi. Lütfen "Email\'i yeniden gönder" özelliğini kullanın.',
       user: user.toSafeObject(),
     };
   } catch (error) {
-    await transaction.rollback();
+    // Transaction commit edilmeden önce hata olursa rollback yap
+    // Ama commit edildikten sonra hata olursa rollback yapma
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
     throw error;
   }
 };
