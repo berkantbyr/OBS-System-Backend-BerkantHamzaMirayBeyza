@@ -90,7 +90,7 @@ const courses = [
     credits: 4,
     ects: 6,
     department_code: 'CSE',
-    prerequisites: ['CSE101'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
   },
   {
     code: 'CSE201',
@@ -99,7 +99,7 @@ const courses = [
     credits: 4,
     ects: 7,
     department_code: 'CSE',
-    prerequisites: ['CSE102'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
   },
   {
     code: 'CSE202',
@@ -108,7 +108,7 @@ const courses = [
     credits: 3,
     ects: 5,
     department_code: 'CSE',
-    prerequisites: ['CSE101'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
   },
   {
     code: 'CSE301',
@@ -117,7 +117,7 @@ const courses = [
     credits: 3,
     ects: 5,
     department_code: 'CSE',
-    prerequisites: ['CSE201'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
   },
   {
     code: 'CSE302',
@@ -126,7 +126,25 @@ const courses = [
     credits: 3,
     ects: 5,
     department_code: 'CSE',
-    prerequisites: ['CSE201'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
+  },
+  {
+    code: 'CSE103',
+    name: 'Algoritma ve Programlama',
+    description: 'Temel algoritma tasarımı ve problem çözme teknikleri.',
+    credits: 3,
+    ects: 5,
+    department_code: 'CSE',
+    prerequisites: [],
+  },
+  {
+    code: 'CSE203',
+    name: 'Bilgisayar Ağları',
+    description: 'Ağ protokolleri, TCP/IP, OSI modeli ve ağ güvenliği.',
+    credits: 3,
+    ects: 5,
+    department_code: 'CSE',
+    prerequisites: [],
   },
   // Math courses
   {
@@ -145,7 +163,7 @@ const courses = [
     credits: 4,
     ects: 6,
     department_code: 'MATH',
-    prerequisites: ['MATH101'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
   },
   {
     code: 'MATH201',
@@ -154,7 +172,25 @@ const courses = [
     credits: 3,
     ects: 5,
     department_code: 'MATH',
-    prerequisites: ['MATH102'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
+  },
+  {
+    code: 'MATH103',
+    name: 'Ayrık Matematik',
+    description: 'Mantık, küme teorisi, graf teorisi ve kombinatoryal analiz.',
+    credits: 3,
+    ects: 5,
+    department_code: 'MATH',
+    prerequisites: [],
+  },
+  {
+    code: 'MATH202',
+    name: 'Olasılık ve İstatistik',
+    description: 'Temel olasılık teorisi, rastgele değişkenler ve istatistiksel analiz.',
+    credits: 3,
+    ects: 5,
+    department_code: 'MATH',
+    prerequisites: [],
   },
   // Physics courses
   {
@@ -173,7 +209,16 @@ const courses = [
     credits: 4,
     ects: 6,
     department_code: 'PHYS',
-    prerequisites: ['PHYS101'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
+  },
+  {
+    code: 'PHYS103',
+    name: 'Modern Fizik',
+    description: 'Kuantum mekaniği, özel görelilik ve atom fiziği.',
+    credits: 3,
+    ects: 5,
+    department_code: 'PHYS',
+    prerequisites: [],
   },
   // Business courses
   {
@@ -192,7 +237,80 @@ const courses = [
     credits: 3,
     ects: 5,
     department_code: 'BA',
-    prerequisites: ['BUS101'],
+    prerequisites: [], // Önkoşul kaldırıldı - daha fazla ders alınabilmesi için
+  },
+  {
+    code: 'BUS103',
+    name: 'Pazarlama İlkeleri',
+    description: 'Pazarlama stratejileri, tüketici davranışı ve marka yönetimi.',
+    credits: 3,
+    ects: 5,
+    department_code: 'BA',
+    prerequisites: [],
+  },
+  {
+    code: 'BUS202',
+    name: 'İnsan Kaynakları Yönetimi',
+    description: 'İK süreçleri, işe alım, eğitim ve performans yönetimi.',
+    credits: 3,
+    ects: 5,
+    department_code: 'BA',
+    prerequisites: [],
+  },
+  // Genel Seçmeli Dersler
+  {
+    code: 'ENG101',
+    name: 'İngilizce I',
+    description: 'Temel İngilizce dilbilgisi, kelime dağarcığı ve iletişim becerileri.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
+  },
+  {
+    code: 'ENG102',
+    name: 'İngilizce II',
+    description: 'İleri düzey İngilizce, akademik yazma ve sunum teknikleri.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
+  },
+  {
+    code: 'HIST101',
+    name: 'Türk Tarihi',
+    description: 'Türkiye tarihinin önemli dönemleri ve olayları.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
+  },
+  {
+    code: 'ART101',
+    name: 'Sanat Tarihi',
+    description: 'Dünya sanat tarihi, önemli sanat akımları ve eserler.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
+  },
+  {
+    code: 'MUS101',
+    name: 'Müzik Kültürü',
+    description: 'Müzik tarihi, farklı müzik türleri ve kültürel etkiler.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
+  },
+  {
+    code: 'PHIL101',
+    name: 'Felsefeye Giriş',
+    description: 'Temel felsefi düşünce, etik ve mantık.',
+    credits: 2,
+    ects: 3,
+    department_code: 'BA', // Genel seçmeli
+    prerequisites: [],
   },
 ];
 
@@ -309,20 +427,63 @@ async function seed() {
       currentSemester = 'fall';
     }
 
+    // Çakışmayan schedule'lar - Her ders için farklı saat
     const sectionSchedules = [
+      // Pazartesi-Çarşamba saatleri
       [{ day: 'monday', start_time: '09:00', end_time: '10:30' }, { day: 'wednesday', start_time: '09:00', end_time: '10:30' }],
-      [{ day: 'monday', start_time: '11:00', end_time: '12:30' }, { day: 'thursday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'monday', start_time: '11:00', end_time: '12:30' }, { day: 'wednesday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'monday', start_time: '13:00', end_time: '14:30' }, { day: 'wednesday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'monday', start_time: '14:30', end_time: '16:00' }, { day: 'wednesday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Salı-Cuma saatleri
       [{ day: 'tuesday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
-      [{ day: 'tuesday', start_time: '14:00', end_time: '15:30' }, { day: 'thursday', start_time: '14:00', end_time: '15:30' }],
+      [{ day: 'tuesday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'tuesday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'tuesday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Pazartesi-Perşembe saatleri
+      [{ day: 'monday', start_time: '09:00', end_time: '10:30' }, { day: 'thursday', start_time: '09:00', end_time: '10:30' }],
+      [{ day: 'monday', start_time: '11:00', end_time: '12:30' }, { day: 'thursday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'monday', start_time: '13:00', end_time: '14:30' }, { day: 'thursday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'monday', start_time: '14:30', end_time: '16:00' }, { day: 'thursday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Salı-Perşembe saatleri
+      [{ day: 'tuesday', start_time: '09:00', end_time: '10:30' }, { day: 'thursday', start_time: '09:00', end_time: '10:30' }],
+      [{ day: 'tuesday', start_time: '11:00', end_time: '12:30' }, { day: 'thursday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'tuesday', start_time: '13:00', end_time: '14:30' }, { day: 'thursday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'tuesday', start_time: '14:30', end_time: '16:00' }, { day: 'thursday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Çarşamba-Cuma saatleri
+      [{ day: 'wednesday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
+      [{ day: 'wednesday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'wednesday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'wednesday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Perşembe-Cuma saatleri
+      [{ day: 'thursday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
+      [{ day: 'thursday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
+      [{ day: 'thursday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
+      [{ day: 'thursday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
+      
+      // Tek gün dersler (daha fazla seçenek için)
+      [{ day: 'monday', start_time: '16:00', end_time: '17:30' }],
+      [{ day: 'tuesday', start_time: '16:00', end_time: '17:30' }],
+      [{ day: 'wednesday', start_time: '16:00', end_time: '17:30' }],
+      [{ day: 'thursday', start_time: '16:00', end_time: '17:30' }],
+      [{ day: 'friday', start_time: '16:00', end_time: '17:30' }],
     ];
 
     let sectionCount = 0;
+    let scheduleIndex = 0; // Her ders için sırayla farklı schedule atamak için
+    
     for (const courseCode of Object.keys(courseMap)) {
       const courseId = courseMap[courseCode];
       const randomInstructor = facultyMembers[Math.floor(Math.random() * facultyMembers.length)];
       const randomClassroom = allClassrooms[Math.floor(Math.random() * allClassrooms.length)];
-      const randomSchedule = sectionSchedules[Math.floor(Math.random() * sectionSchedules.length)];
+      
+      // Her ders için sırayla farklı schedule atama (çakışma önleme)
+      const selectedSchedule = sectionSchedules[scheduleIndex % sectionSchedules.length];
+      scheduleIndex++;
 
       await CourseSection.findOrCreate({
         where: {
@@ -340,7 +501,7 @@ async function seed() {
           classroom_id: randomClassroom?.id || null,
           capacity: 40,
           enrolled_count: 0,
-          schedule_json: randomSchedule,
+          schedule_json: selectedSchedule,
           is_active: true,
         },
       });

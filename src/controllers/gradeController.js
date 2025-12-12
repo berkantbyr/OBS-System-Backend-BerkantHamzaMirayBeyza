@@ -11,14 +11,19 @@ const getMyGrades = async (req, res) => {
   try {
     const { semester, year } = req.query;
 
+    logger.info(`📊 Get my grades - User: ${req.user.id}, Filters: ${JSON.stringify({ semester, year })}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
+
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
 
     const whereClause = {
       student_id: student.id,
@@ -28,6 +33,7 @@ const getMyGrades = async (req, res) => {
     if (semester) sectionWhere.semester = semester;
     if (year) sectionWhere.year = parseInt(year);
 
+    logger.info(`🔍 Fetching enrollments with filters: ${JSON.stringify({ whereClause, sectionWhere })}`);
     const enrollments = await Enrollment.findAll({
       where: whereClause,
       include: [
@@ -43,16 +49,18 @@ const getMyGrades = async (req, res) => {
       order: [[{ model: CourseSection, as: 'section' }, 'year', 'DESC']],
     });
 
+    logger.info(`✅ Found ${enrollments.length} enrollments`);
+
     const grades = enrollments.map((e) => ({
       enrollmentId: e.id,
       course: {
-        code: e.section.course.code,
-        name: e.section.course.name,
-        credits: e.section.course.credits,
-        ects: e.section.course.ects,
+        code: e.section?.course?.code,
+        name: e.section?.course?.name,
+        credits: e.section?.course?.credits,
+        ects: e.section?.course?.ects,
       },
-      semester: e.section.semester,
-      year: e.section.year,
+      semester: e.section?.semester,
+      year: e.section?.year,
       grades: {
         midterm: e.midterm_grade,
         final: e.final_grade,
@@ -66,7 +74,9 @@ const getMyGrades = async (req, res) => {
     }));
 
     // Calculate GPA
+    logger.info(`📈 Calculating CGPA for student: ${student.id}`);
     const { cgpa, totalCredits, semesters } = await gradeCalculationService.calculateCGPA(student.id);
+    logger.info(`✅ CGPA calculated: ${cgpa}, Total Credits: ${totalCredits}, Semesters: ${semesters.length}`);
 
     res.json({
       success: true,
@@ -85,7 +95,11 @@ const getMyGrades = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('Get my grades error:', error);
+    logger.error('❌ Get my grades error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+    });
     res.status(500).json({
       success: false,
       message: 'Notlar alınırken hata oluştu',
@@ -100,23 +114,32 @@ const getMyGrades = async (req, res) => {
  */
 const getTranscript = async (req, res) => {
   try {
+    logger.info(`📄 Get transcript - User: ${req.user.id}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
     const transcript = await gradeCalculationService.getTranscript(student.id);
+    logger.info(`✅ Transcript generated for student: ${student.id}`);
 
     res.json({
       success: true,
       data: transcript,
     });
   } catch (error) {
-    logger.error('Get transcript error:', error);
+    logger.error('❌ Get transcript error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+    });
     res.status(500).json({
       success: false,
       message: 'Transkript alınırken hata oluştu',
@@ -131,16 +154,21 @@ const getTranscript = async (req, res) => {
  */
 const getTranscriptPDF = async (req, res) => {
   try {
+    logger.info(`📄 Get transcript PDF - User: ${req.user.id}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
     const transcript = await gradeCalculationService.getTranscript(student.id);
+    logger.info(`✅ Transcript data fetched, generating HTML`);
 
     // Generate HTML for PDF
     const html = generateTranscriptHTML(transcript);
@@ -148,9 +176,14 @@ const getTranscriptPDF = async (req, res) => {
     // For now, return HTML (can be converted to PDF with Puppeteer in production)
     res.setHeader('Content-Type', 'text/html');
     res.setHeader('Content-Disposition', `attachment; filename=transcript_${student.student_number}.html`);
+    logger.info(`✅ Transcript HTML generated and sent`);
     res.send(html);
   } catch (error) {
-    logger.error('Get transcript PDF error:', error);
+    logger.error('❌ Get transcript PDF error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+    });
     res.status(500).json({
       success: false,
       message: 'Transkript PDF oluşturulurken hata oluştu',
@@ -187,6 +220,7 @@ const enterGrades = async (req, res) => {
         {
           model: Student,
           as: 'student',
+          include: [{ model: db.User, as: 'user', attributes: ['id', 'email', 'first_name'] }],
         },
       ],
     });
@@ -231,6 +265,32 @@ const enterGrades = async (req, res) => {
     await gradeCalculationService.updateStudentGPA(enrollment.student_id);
 
     logger.info(`Grades updated for enrollment ${enrollment_id} by ${req.user.id}`);
+
+    // Send notification to student (async, don't wait for it)
+    try {
+      const { sendGradeUpdateEmail } = require('../services/emailService');
+      const studentUser = await db.User.findByPk(enrollment.student.user_id);
+      if (studentUser && studentUser.email) {
+        sendGradeUpdateEmail(
+          studentUser.email,
+          studentUser.first_name,
+          enrollment.section.course.code,
+          enrollment.section.course.name,
+          {
+            midterm: updatedEnrollment.midterm_grade,
+            final: updatedEnrollment.final_grade,
+            homework: updatedEnrollment.homework_grade,
+            average: updatedEnrollment.average_grade,
+            letterGrade: updatedEnrollment.letter_grade,
+          }
+        ).catch((err) => {
+          logger.warn(`Failed to send grade update email to ${studentUser.email}:`, err.message);
+        });
+      }
+    } catch (emailError) {
+      logger.warn('Error sending grade update email:', emailError.message);
+      // Don't fail the request if email fails
+    }
 
     res.json({
       success: true,
@@ -306,6 +366,18 @@ const bulkEnterGrades = async (req, res) => {
 
         const enrollment = await Enrollment.findOne({
           where: { id: enrollment_id, section_id },
+          include: [
+            {
+              model: Student,
+              as: 'student',
+              include: [{ model: db.User, as: 'user', attributes: ['id', 'email', 'first_name'] }],
+            },
+            {
+              model: CourseSection,
+              as: 'section',
+              include: [{ model: Course, as: 'course' }],
+            },
+          ],
         });
 
         if (!enrollment) {
@@ -320,6 +392,30 @@ const bulkEnterGrades = async (req, res) => {
 
         const updated = await gradeCalculationService.updateGrades(enrollment_id, gradeData);
         await gradeCalculationService.updateStudentGPA(enrollment.student_id);
+
+        // Send notification to student (async, don't wait for it)
+        try {
+          const { sendGradeUpdateEmail } = require('../services/emailService');
+          if (enrollment.student?.user?.email) {
+            sendGradeUpdateEmail(
+              enrollment.student.user.email,
+              enrollment.student.user.first_name,
+              enrollment.section.course.code,
+              enrollment.section.course.name,
+              {
+                midterm: updated.midterm_grade,
+                final: updated.final_grade,
+                homework: updated.homework_grade,
+                average: updated.average_grade,
+                letterGrade: updated.letter_grade,
+              }
+            ).catch((err) => {
+              logger.warn(`Failed to send grade update email to ${enrollment.student.user.email}:`, err.message);
+            });
+          }
+        } catch (emailError) {
+          logger.warn('Error sending grade update email:', emailError.message);
+        }
 
         results.push({
           enrollment_id,

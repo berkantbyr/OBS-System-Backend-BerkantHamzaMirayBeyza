@@ -244,6 +244,8 @@ class AttendanceService {
    * @returns {Object} - Attendance stats
    */
   async getStudentAttendanceStats(studentId, sectionId) {
+    logger.info(`📊 Getting attendance stats - Student: ${studentId}, Section: ${sectionId}`);
+
     // Get all sessions for the section
     const sessions = await AttendanceSession.findAll({
       where: {
@@ -252,7 +254,23 @@ class AttendanceService {
       },
     });
 
+    logger.info(`✅ Found ${sessions.length} sessions for section: ${sectionId}`);
+
     const sessionIds = sessions.map((s) => s.id);
+
+    // If no sessions, return default stats
+    if (sessionIds.length === 0) {
+      logger.info(`⚠️ No sessions found for section: ${sectionId}, returning default stats`);
+      return {
+        totalSessions: 0,
+        present: 0,
+        late: 0,
+        excused: 0,
+        absent: 0,
+        attendancePercentage: 100,
+        status: 'ok',
+      };
+    }
 
     // Get attendance records for student
     const records = await AttendanceRecord.findAll({
@@ -262,6 +280,8 @@ class AttendanceService {
       },
     });
 
+    logger.info(`✅ Found ${records.length} attendance records for student: ${studentId}`);
+
     // Get excused absences
     const excusedRequests = await ExcuseRequest.findAll({
       where: {
@@ -270,6 +290,8 @@ class AttendanceService {
         status: 'approved',
       },
     });
+
+    logger.info(`✅ Found ${excusedRequests.length} approved excuse requests`);
 
     const totalSessions = sessions.length;
     const presentCount = records.filter((r) => r.status === 'present').length;
@@ -287,6 +309,8 @@ class AttendanceService {
     } else if (attendancePercentage < 80) {
       status = 'warning'; // >20% absence
     }
+
+    logger.info(`📈 Attendance stats calculated - Total: ${totalSessions}, Present: ${presentCount}, Late: ${lateCount}, Excused: ${excusedCount}, Absent: ${absentCount}, Percentage: ${attendancePercentage}%, Status: ${status}`);
 
     return {
       totalSessions,

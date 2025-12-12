@@ -93,7 +93,44 @@ const getCourseById = async (req, res) => {
 
     // Get prerequisites
     const prerequisites = await prerequisiteService.getDirectPrerequisites(id);
-
+    
+    // If user is authenticated and is a student, check prerequisite completion status
+    let prerequisitesWithStatus = prerequisites;
+    if (req.user && req.user.role === 'student') {
+      try {
+        const { Student } = require('../models');
+        const student = await Student.findOne({ where: { user_id: req.user.id } });
+        
+        if (student) {
+          prerequisitesWithStatus = await Promise.all(
+            prerequisites.map(async (prereq) => {
+              try {
+                const completed = await prerequisiteService.hasCompletedCourse(
+                  student.id,
+                  prereq.id,
+                  prereq.min_grade || 'DD'
+                );
+                return {
+                  ...prereq,
+                  completed,
+                };
+              } catch (error) {
+                logger.warn(`Error checking prerequisite ${prereq.id} for student ${student.id}:`, error);
+                // Return prerequisite without status if check fails
+                return {
+                  ...prereq,
+                  completed: undefined,
+                };
+              }
+            })
+          );
+        }
+      } catch (error) {
+        logger.warn('Error checking prerequisite status:', error);
+        // Continue without status if check fails
+      }
+    }
+ 
     // Get active sections for current and next semester
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth();
@@ -130,7 +167,7 @@ const getCourseById = async (req, res) => {
       success: true,
       data: {
         course,
-        prerequisites,
+        prerequisites: prerequisitesWithStatus,
         sections: sections.map((s) => ({
           id: s.id,
           sectionNumber: s.section_number,
@@ -339,11 +376,38 @@ const deleteCourse = async (req, res) => {
   }
 };
 
+/**
+ * Get all departments (for filtering)
+ * GET /api/v1/courses/departments
+ */
+const getDepartments = async (req, res) => {
+  try {
+    const departments = await Department.findAll({
+      where: { is_active: true },
+      attributes: ['id', 'code', 'name'],
+      order: [['name', 'ASC']],
+    });
+
+    res.json({
+      success: true,
+      data: departments,
+    });
+  } catch (error) {
+    logger.error('Get departments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bölümler alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getCourses,
   getCourseById,
   createCourse,
   updateCourse,
   deleteCourse,
+  getDepartments,
 };
 

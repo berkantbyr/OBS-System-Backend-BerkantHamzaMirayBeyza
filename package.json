@@ -5,7 +5,9 @@
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.js",
-    "dev": "nodemon src/app.js",
+    "dev": "node scripts/kill-port.js && nodemon",
+    "dev:safe": "node scripts/kill-port.js && nodemon",
+    "kill-port": "node scripts/kill-port.js",
     "test": "jest --coverage --detectOpenHandles",
     "test:watch": "jest --watch",
     "lint": "eslint src/",

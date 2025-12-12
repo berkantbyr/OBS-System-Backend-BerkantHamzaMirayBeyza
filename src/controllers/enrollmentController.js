@@ -13,18 +13,44 @@ const enrollInCourse = async (req, res) => {
   try {
     const { section_id } = req.body;
 
+    // Validate input
+    if (!section_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Section ID gereklidir',
+      });
+    }
+
+    logger.info(`Enrollment attempt - User: ${req.user.id}, Section: ${section_id}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`Student found: ${student.id} (${student.student_number})`);
+
+    // Check if section exists
+    const section = await CourseSection.findByPk(section_id);
+    if (!section) {
+      logger.warn(`Section not found: ${section_id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Section bulunamadı',
+      });
+    }
+
+    logger.info(`Section found: ${section.id} - Course: ${section.course_id}, Active: ${section.is_active}, Capacity: ${section.enrolled_count}/${section.capacity}`);
+
+    // Enroll student
     const result = await enrollmentService.enrollStudent(student.id, section_id);
 
-    logger.info(`Student ${student.student_number} enrolled in section ${section_id}`);
+    logger.info(`✅ Student ${student.student_number} successfully enrolled in section ${section_id}`);
 
     res.status(201).json({
       success: true,
@@ -43,10 +69,24 @@ const enrollInCourse = async (req, res) => {
       },
     });
   } catch (error) {
-    logger.error('Enrollment error:', error);
-    res.status(400).json({
+    logger.error('❌ Enrollment error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+      section_id: req.body?.section_id,
+    });
+    
+    // Determine appropriate status code
+    let statusCode = 400;
+    if (error.message.includes('not found')) {
+      statusCode = 404;
+    } else if (error.message.includes('already') || error.message.includes('full')) {
+      statusCode = 409; // Conflict
+    }
+
+    res.status(statusCode).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Ders kaydı yapılırken hata oluştu',
     });
   }
 };
@@ -59,28 +99,47 @@ const dropCourse = async (req, res) => {
   try {
     const { id } = req.params;
 
+    logger.info(`🗑️ Drop course request - User: ${req.user.id}, Enrollment ID: ${id}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
+
     const result = await enrollmentService.dropCourse(id, student.id);
 
-    logger.info(`Student ${student.student_number} dropped enrollment ${id}`);
+    logger.info(`✅ Student ${student.student_number} successfully dropped enrollment ${id}`);
 
     res.json({
       success: true,
       message: result.message,
     });
   } catch (error) {
-    logger.error('Drop course error:', error);
-    res.status(400).json({
+    logger.error('❌ Drop course error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+      enrollmentId: req.params?.id,
+    });
+    
+    // Determine appropriate status code
+    let statusCode = 400;
+    if (error.message.includes('not found')) {
+      statusCode = 404;
+    } else if (error.message.includes('period')) {
+      statusCode = 403; // Forbidden - drop period ended
+    }
+
+    res.status(statusCode).json({
       success: false,
-      message: error.message,
+      message: error.message || 'Ders bırakılırken hata oluştu',
     });
   }
 };
@@ -93,50 +152,72 @@ const getMyCourses = async (req, res) => {
   try {
     const { semester, year, status } = req.query;
 
+    logger.info(`📚 Get my courses - User: ${req.user.id}, Filters: ${JSON.stringify({ semester, year, status })}`);
+
     // Get student ID from user
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
+
     const options = {};
     if (semester) options.semester = semester;
     if (year) options.year = parseInt(year);
     if (status) options.status = status;
 
+    logger.info(`🔍 Fetching enrollments with options: ${JSON.stringify(options)}`);
     const enrollments = await enrollmentService.getStudentEnrollments(student.id, options);
+    logger.info(`✅ Found ${enrollments.length} enrollments`);
 
-    // Get attendance stats for each enrollment
-    const attendanceService = require('../services/attendanceService');
+    // Get attendance stats for each enrollment (optional, may fail if attendance service not available)
+    let attendanceService;
+    try {
+      attendanceService = require('../services/attendanceService');
+    } catch (err) {
+      logger.warn('Attendance service not available, skipping attendance stats');
+    }
+
     const enrollmentsWithAttendance = await Promise.all(
       enrollments.map(async (e) => {
-        const attendanceStats = await attendanceService.getStudentAttendanceStats(student.id, e.section_id);
+        let attendanceStats = null;
+        if (attendanceService) {
+          try {
+            attendanceStats = await attendanceService.getStudentAttendanceStats(student.id, e.section_id);
+          } catch (err) {
+            logger.warn(`Failed to get attendance stats for enrollment ${e.id}:`, err.message);
+          }
+        }
+
         return {
           id: e.id,
           course: {
-            id: e.section.course.id,
-            code: e.section.course.code,
-            name: e.section.course.name,
-            credits: e.section.course.credits,
+            id: e.section?.course?.id,
+            code: e.section?.course?.code,
+            name: e.section?.course?.name,
+            credits: e.section?.course?.credits,
           },
           section: {
-            id: e.section.id,
-            sectionNumber: e.section.section_number,
-            semester: e.section.semester,
-            year: e.section.year,
-            instructor: e.section.instructor
+            id: e.section?.id,
+            sectionNumber: e.section?.section_number,
+            semester: e.section?.semester,
+            year: e.section?.year,
+            instructor: e.section?.instructor?.user
               ? `${e.section.instructor.user.first_name} ${e.section.instructor.user.last_name}`
               : null,
-            classroom: e.section.classroom
+            classroom: e.section?.classroom
               ? `${e.section.classroom.building} ${e.section.classroom.room_number}`
               : null,
-            schedule: e.section.schedule_json,
+            schedule: e.section?.schedule_json || e.section?.schedule,
           },
           status: e.status,
           enrollmentDate: e.enrollment_date,
+          dropDate: e.drop_date,
           grades: {
             midterm: e.midterm_grade,
             final: e.final_grade,
@@ -150,12 +231,18 @@ const getMyCourses = async (req, res) => {
       })
     );
 
+    logger.info(`✅ Returning ${enrollmentsWithAttendance.length} enrollments with attendance data`);
+
     res.json({
       success: true,
       data: enrollmentsWithAttendance,
     });
   } catch (error) {
-    logger.error('Get my courses error:', error);
+    logger.error('❌ Get my courses error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+    });
     res.status(500).json({
       success: false,
       message: 'Dersler alınırken hata oluştu',

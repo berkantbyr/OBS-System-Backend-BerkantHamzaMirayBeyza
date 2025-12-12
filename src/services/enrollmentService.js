@@ -2,6 +2,7 @@ const db = require('../models');
 const { Enrollment, CourseSection, Course, Student } = db;
 const prerequisiteService = require('./prerequisiteService');
 const scheduleConflictService = require('./scheduleConflictService');
+const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
 /**
@@ -23,6 +24,8 @@ class EnrollmentService {
     const transaction = await db.sequelize.transaction();
 
     try {
+      logger.info(`🔄 Starting enrollment - Student: ${studentId}, Section: ${sectionId}`);
+
       // Get section with course info
       const section = await CourseSection.findByPk(sectionId, {
         include: [{ model: Course, as: 'course' }],
@@ -31,16 +34,21 @@ class EnrollmentService {
       });
 
       if (!section) {
-        throw new Error('Section not found');
+        logger.warn(`❌ Section not found: ${sectionId}`);
+        throw new Error('Section bulunamadı');
       }
 
+      logger.info(`📚 Section found: ${section.course?.code || 'N/A'} - Active: ${section.is_active}, Capacity: ${section.enrolled_count}/${section.capacity}`);
+
       if (!section.is_active) {
-        throw new Error('Section is not active');
+        logger.warn(`❌ Section is not active: ${sectionId}`);
+        throw new Error('Section aktif değil');
       }
 
       // Check capacity with atomic update
       if (section.enrolled_count >= section.capacity) {
-        throw new Error('Section is full');
+        logger.warn(`❌ Section is full: ${sectionId} (${section.enrolled_count}/${section.capacity})`);
+        throw new Error('Section dolu');
       }
 
       // Check if already enrolled in this section
@@ -53,11 +61,12 @@ class EnrollmentService {
       });
 
       if (existingEnrollment) {
+        logger.warn(`❌ Existing enrollment found: ${existingEnrollment.id}, Status: ${existingEnrollment.status}`);
         if (existingEnrollment.status === 'enrolled') {
-          throw new Error('Already enrolled in this section');
+          throw new Error('Bu section\'a zaten kayıtlısınız');
         }
         if (existingEnrollment.status === 'dropped') {
-          throw new Error('Cannot re-enroll in a dropped course');
+          throw new Error('Bırakılan bir derse tekrar kayıt olamazsınız');
         }
       }
 
@@ -83,23 +92,60 @@ class EnrollmentService {
       });
 
       if (otherSectionEnrollment) {
-        throw new Error('Already enrolled in another section of this course');
+        throw new Error('Bu dersin başka bir section\'ına zaten kayıtlısınız');
       }
 
       // Check prerequisites
+      logger.info(`🔍 Checking prerequisites for course: ${section.course_id}`);
       const prereqResult = await prerequisiteService.checkPrerequisites(studentId, section.course_id);
       if (!prereqResult.satisfied) {
         const missingCourses = prereqResult.missing.map((m) => `${m.courseCode} (${m.courseName})`).join(', ');
-        throw new Error(`Prerequisites not met. Missing: ${missingCourses}`);
+        logger.warn(`❌ Prerequisites not met. Missing: ${missingCourses}`);
+        throw new Error(`Önkoşullar karşılanmadı. Eksik dersler: ${missingCourses}`);
       }
+      logger.info(`✅ Prerequisites satisfied`);
 
       // Check schedule conflicts
+      logger.info(`🔍 Checking schedule conflicts`);
       const conflictResult = await scheduleConflictService.checkScheduleConflict(studentId, sectionId);
-      if (conflictResult.hasConflict) {
+      
+      // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
+      const allowConflicts = process.env.ALLOW_SCHEDULE_CONFLICTS === 'true';
+      
+      if (conflictResult.hasConflict && !allowConflicts) {
         const conflictInfo = conflictResult.conflicts[0];
+        const dayNames = {
+          monday: 'Pazartesi',
+          tuesday: 'Salı',
+          wednesday: 'Çarşamba',
+          thursday: 'Perşembe',
+          friday: 'Cuma',
+          saturday: 'Cumartesi',
+          sunday: 'Pazar',
+        };
+        const conflictDay = dayNames[conflictInfo.conflictDay?.toLowerCase()] || conflictInfo.conflictDay;
+        logger.warn(`❌ Schedule conflict detected: ${conflictInfo.existingCourse.code} on ${conflictDay}`);
         throw new Error(
-          `Schedule conflict with ${conflictInfo.existingCourse.code} on ${conflictInfo.conflictDay}`
+          `${conflictInfo.existingCourse.code} dersi ile ${conflictDay} günü program çakışması var`
         );
+      }
+      
+      if (conflictResult.hasConflict && allowConflicts) {
+        logger.warn(`⚠️ Schedule conflict detected but allowed (ALLOW_SCHEDULE_CONFLICTS=true)`);
+        const conflictInfo = conflictResult.conflicts[0];
+        const dayNames = {
+          monday: 'Pazartesi',
+          tuesday: 'Salı',
+          wednesday: 'Çarşamba',
+          thursday: 'Perşembe',
+          friday: 'Cuma',
+          saturday: 'Cumartesi',
+          sunday: 'Pazar',
+        };
+        const conflictDay = dayNames[conflictInfo.conflictDay?.toLowerCase()] || conflictInfo.conflictDay;
+        logger.warn(`⚠️ Conflict: ${conflictInfo.existingCourse.code} on ${conflictDay} - Enrollment will proceed`);
+      } else {
+        logger.info(`✅ No schedule conflicts`);
       }
 
       // Check if this is a repeat
@@ -119,10 +165,11 @@ class EnrollmentService {
       );
 
       if (updateCount === 0) {
-        throw new Error('Section is full (concurrent enrollment)');
+        throw new Error('Section dolu (eşzamanlı kayıt)');
       }
 
       // Create enrollment
+      logger.info(`📝 Creating enrollment record`);
       const enrollment = await Enrollment.create(
         {
           student_id: studentId,
@@ -134,7 +181,10 @@ class EnrollmentService {
         { transaction }
       );
 
+      logger.info(`✅ Enrollment created: ${enrollment.id}`);
+
       await transaction.commit();
+      logger.info(`✅ Transaction committed successfully`);
 
       // Return with section and course info
       const result = await Enrollment.findByPk(enrollment.id, {
@@ -147,12 +197,15 @@ class EnrollmentService {
         ],
       });
 
+      logger.info(`✅ Enrollment completed successfully - ${section.course.code} - ${section.course.name}`);
+
       return {
         success: true,
         enrollment: result,
         message: `Successfully enrolled in ${section.course.code} - ${section.course.name}`,
       };
     } catch (error) {
+      logger.error(`❌ Enrollment failed - Rolling back transaction:`, error);
       await transaction.rollback();
       throw error;
     }
@@ -168,6 +221,8 @@ class EnrollmentService {
     const transaction = await db.sequelize.transaction();
 
     try {
+      logger.info(`🗑️ Starting drop course - Enrollment: ${enrollmentId}, Student: ${studentId}`);
+
       const enrollment = await Enrollment.findOne({
         where: {
           id: enrollmentId,
@@ -185,26 +240,34 @@ class EnrollmentService {
       });
 
       if (!enrollment) {
-        throw new Error('Enrollment not found or already dropped');
+        logger.warn(`❌ Enrollment not found or already dropped - ID: ${enrollmentId}, Student: ${studentId}`);
+        throw new Error('Kayıt bulunamadı veya zaten bırakılmış');
       }
+
+      logger.info(`✅ Enrollment found: ${enrollment.id} - Course: ${enrollment.section?.course?.code || 'N/A'}`);
 
       // Check drop period
       const enrollmentDate = new Date(enrollment.enrollment_date);
       const daysSinceEnrollment = Math.floor((Date.now() - enrollmentDate.getTime()) / (1000 * 60 * 60 * 24));
 
+      logger.info(`📅 Days since enrollment: ${daysSinceEnrollment} (Drop period: ${this.DROP_PERIOD_DAYS} days)`);
+
       if (daysSinceEnrollment > this.DROP_PERIOD_DAYS) {
+        logger.warn(`❌ Drop period ended - Days: ${daysSinceEnrollment}, Limit: ${this.DROP_PERIOD_DAYS}`);
         throw new Error(
-          `Drop period has ended. Courses can only be dropped within the first ${this.DROP_PERIOD_DAYS} days.`
+          `Ders bırakma süresi doldu. Dersler sadece ilk ${this.DROP_PERIOD_DAYS} gün içinde bırakılabilir.`
         );
       }
 
       // Update enrollment status
+      logger.info(`📝 Updating enrollment status to 'dropped'`);
       enrollment.status = 'dropped';
       enrollment.drop_date = new Date();
       await enrollment.save({ transaction });
 
-      // Update section capacity
-      await CourseSection.update(
+      // Update section capacity (decrease enrolled_count)
+      logger.info(`📉 Decreasing section capacity for section: ${enrollment.section_id}`);
+      const [updateCount] = await CourseSection.update(
         { enrolled_count: db.sequelize.literal('enrolled_count - 1') },
         {
           where: { id: enrollment.section_id },
@@ -212,13 +275,22 @@ class EnrollmentService {
         }
       );
 
+      if (updateCount === 0) {
+        logger.warn(`⚠️ Section capacity update failed - Section: ${enrollment.section_id}`);
+        // Don't throw error, enrollment is already dropped
+      } else {
+        logger.info(`✅ Section capacity updated - Section: ${enrollment.section_id}`);
+      }
+
       await transaction.commit();
+      logger.info(`✅ Transaction committed - Course dropped successfully`);
 
       return {
         success: true,
-        message: `Successfully dropped ${enrollment.section.course.code} - ${enrollment.section.course.name}`,
+        message: `${enrollment.section.course.code} - ${enrollment.section.course.name} dersi başarıyla bırakıldı`,
       };
     } catch (error) {
+      logger.error(`❌ Drop course failed - Rolling back transaction:`, error);
       await transaction.rollback();
       throw error;
     }
@@ -325,7 +397,7 @@ class EnrollmentService {
     });
 
     if (!section) {
-      return { eligible: false, reason: 'Section not found' };
+      return { eligible: false, reason: 'Section bulunamadı' };
     }
 
     const checks = {
@@ -335,15 +407,19 @@ class EnrollmentService {
       scheduleConflict: await scheduleConflictService.checkScheduleConflict(studentId, sectionId),
     };
 
+    // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
+    const allowConflicts = process.env.ALLOW_SCHEDULE_CONFLICTS === 'true';
+
     const issues = [];
 
-    if (!checks.isActive) issues.push('Section is not active');
-    if (!checks.hasCapacity) issues.push('Section is full');
+    if (!checks.isActive) issues.push('Section aktif değil');
+    if (!checks.hasCapacity) issues.push('Section dolu');
     if (!checks.prerequisites.satisfied) {
-      issues.push(`Missing prerequisites: ${checks.prerequisites.missing.map((m) => m.courseCode).join(', ')}`);
+      issues.push(`Eksik önkoşullar: ${checks.prerequisites.missing.map((m) => m.courseCode).join(', ')}`);
     }
-    if (checks.scheduleConflict.hasConflict) {
-      issues.push('Schedule conflict detected');
+    // Only add schedule conflict as an issue if conflicts are not allowed
+    if (checks.scheduleConflict.hasConflict && !allowConflicts) {
+      issues.push('Program çakışması tespit edildi');
     }
 
     return {

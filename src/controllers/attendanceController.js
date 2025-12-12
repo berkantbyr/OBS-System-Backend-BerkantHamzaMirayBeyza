@@ -94,6 +94,42 @@ const createSession = async (req, res) => {
       where: { section_id, status: 'enrolled' },
     });
 
+    // Send notifications to enrolled students (async, don't wait for it)
+    try {
+      const { sendAttendanceSessionEmail } = require('../services/emailService');
+      const enrollments = await Enrollment.findAll({
+        where: { section_id, status: 'enrolled' },
+        include: [
+          {
+            model: Student,
+            as: 'student',
+            include: [{ model: db.User, as: 'user', attributes: ['id', 'email', 'first_name'] }],
+          },
+        ],
+      });
+
+      // Send email to each enrolled student
+      for (const enrollment of enrollments) {
+        if (enrollment.student?.user?.email) {
+          sendAttendanceSessionEmail(
+            enrollment.student.user.email,
+            enrollment.student.user.first_name,
+            section.course.code,
+            section.course.name,
+            session.date,
+            session.start_time,
+            session.qr_code
+          ).catch((err) => {
+            logger.warn(`Failed to send attendance session email to ${enrollment.student.user.email}:`, err.message);
+          });
+        }
+      }
+      logger.info(`Sent attendance session notifications to ${enrollments.length} students`);
+    } catch (emailError) {
+      logger.warn('Error sending attendance session emails:', emailError.message);
+      // Don't fail the request if email fails
+    }
+
     res.status(201).json({
       success: true,
       message: 'Yoklama oturumu başlatıldı',
@@ -438,50 +474,93 @@ const checkIn = async (req, res) => {
  */
 const getMyAttendance = async (req, res) => {
   try {
+    logger.info(`📊 Get my attendance - User: ${req.user.id}`);
+
     // Get student
     const student = await Student.findOne({ where: { user_id: req.user.id } });
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(403).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
+
     // Get enrolled courses
+    logger.info(`🔍 Fetching enrollments for student: ${student.id}`);
     const enrollments = await Enrollment.findAll({
       where: { student_id: student.id, status: 'enrolled' },
       include: [
         {
           model: CourseSection,
           as: 'section',
-          include: [{ model: Course, as: 'course', attributes: ['code', 'name'] }],
+          include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'name', 'credits'] }],
         },
       ],
     });
 
+    logger.info(`✅ Found ${enrollments.length} enrolled courses`);
+
     const attendance = await Promise.all(
       enrollments.map(async (e) => {
-        const stats = await attendanceService.getStudentAttendanceStats(student.id, e.section_id);
-        return {
-          course: {
-            code: e.section.course.code,
-            name: e.section.course.name,
-          },
-          sectionId: e.section_id,
-          sectionNumber: e.section.section_number,
-          semester: e.section.semester,
-          year: e.section.year,
-          ...stats,
-        };
+        try {
+          logger.info(`📈 Calculating attendance stats for section: ${e.section_id}`);
+          const stats = await attendanceService.getStudentAttendanceStats(student.id, e.section_id);
+          logger.info(`✅ Stats calculated for ${e.section?.course?.code}: ${stats.attendancePercentage}% (${stats.status})`);
+          
+          return {
+            course: {
+              id: e.section?.course?.id,
+              code: e.section?.course?.code,
+              name: e.section?.course?.name,
+              credits: e.section?.course?.credits,
+            },
+            sectionId: e.section_id,
+            sectionNumber: e.section?.section_number,
+            semester: e.section?.semester,
+            year: e.section?.year,
+            ...stats,
+          };
+        } catch (err) {
+          logger.warn(`⚠️ Failed to get stats for section ${e.section_id}:`, err.message);
+          // Return basic info even if stats fail
+          return {
+            course: {
+              id: e.section?.course?.id,
+              code: e.section?.course?.code,
+              name: e.section?.course?.name,
+              credits: e.section?.course?.credits,
+            },
+            sectionId: e.section_id,
+            sectionNumber: e.section?.section_number,
+            semester: e.section?.semester,
+            year: e.section?.year,
+            totalSessions: 0,
+            present: 0,
+            late: 0,
+            excused: 0,
+            absent: 0,
+            attendancePercentage: 100,
+            status: 'ok',
+          };
+        }
       })
     );
+
+    logger.info(`✅ Returning ${attendance.length} attendance records`);
 
     res.json({
       success: true,
       data: attendance,
     });
   } catch (error) {
-    logger.error('Get my attendance error:', error);
+    logger.error('❌ Get my attendance error:', {
+      error: error.message,
+      stack: error.stack,
+      user: req.user?.id,
+    });
     res.status(500).json({
       success: false,
       message: 'Yoklama bilgileri alınırken hata oluştu',
@@ -546,6 +625,102 @@ const getAttendanceReport = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Rapor alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get student's sessions for excuse request
+ * GET /api/v1/attendance/my-sessions
+ */
+const getMySessions = async (req, res) => {
+  try {
+    // Get student
+    const student = await Student.findOne({ where: { user_id: req.user.id } });
+    if (!student) {
+      return res.status(403).json({
+        success: false,
+        message: 'Öğrenci kaydı bulunamadı',
+      });
+    }
+
+    // Get enrolled sections
+    const enrollments = await Enrollment.findAll({
+      where: { student_id: student.id, status: 'enrolled' },
+      include: [
+        {
+          model: CourseSection,
+          as: 'section',
+          include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'name'] }],
+        },
+      ],
+    });
+
+    const sectionIds = enrollments.map((e) => e.section_id);
+
+    // Get all sessions (active and closed) for enrolled courses
+    const sessions = await AttendanceSession.findAll({
+      where: {
+        section_id: { [Op.in]: sectionIds },
+        status: { [Op.in]: ['active', 'closed'] },
+      },
+      include: [
+        {
+          model: CourseSection,
+          as: 'section',
+          include: [
+            { model: Course, as: 'course', attributes: ['id', 'code', 'name'] },
+            { model: Classroom, as: 'classroom', attributes: ['building', 'room_number'] },
+          ],
+        },
+      ],
+      order: [['date', 'DESC'], ['start_time', 'DESC']],
+    });
+
+    // Check which sessions already have excuse requests
+    const existingExcuses = await ExcuseRequest.findAll({
+      where: {
+        student_id: student.id,
+        session_id: { [Op.in]: sessions.map((s) => s.id) },
+      },
+      attributes: ['session_id', 'status'],
+    });
+
+    const excuseMap = new Map();
+    existingExcuses.forEach((excuse) => {
+      excuseMap.set(excuse.session_id, excuse.status);
+    });
+
+    res.json({
+      success: true,
+      data: sessions.map((session) => ({
+        id: session.id,
+        date: session.date,
+        start_time: session.start_time,
+        end_time: session.end_time,
+        course: {
+          id: session.section.course.id,
+          code: session.section.course.code,
+          name: session.section.course.name,
+        },
+        section: {
+          id: session.section.id,
+          section_number: session.section.section_number,
+        },
+        classroom: session.section.classroom
+          ? `${session.section.classroom.building} ${session.section.classroom.room_number}`
+          : null,
+        status: session.status,
+        hasExcuseRequest: excuseMap.has(session.id),
+        excuseRequestStatus: excuseMap.get(session.id) || null,
+      })),
+    });
+  } catch (error) {
+    logger.error('Get my sessions error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Oturumlar alınırken hata oluştu',
       error: error.message,
     });
   }
@@ -644,7 +819,8 @@ module.exports = {
   getInstructorSessions,
   checkIn,
   getMyAttendance,
-  getAttendanceReport,
   getActiveSessions,
+  getMySessions,
+  getAttendanceReport,
 };
 

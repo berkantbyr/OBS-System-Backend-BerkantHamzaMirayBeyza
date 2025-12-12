@@ -156,34 +156,80 @@ const verifyEmail = async (token) => {
  * @returns {Object} Tokens and user info
  */
 const login = async (email, password, metadata = {}) => {
-  // Find user
-  const user = await User.findOne({ 
-    where: { email },
-    include: [
-      { model: Student, as: 'student', include: [{ model: Department, as: 'department' }] },
-      { model: Faculty, as: 'faculty', include: [{ model: Department, as: 'department' }] },
-    ]
-  });
+  // Validate input
+  if (!email || !password) {
+    logger.warn('❌ Login attempt with missing email or password');
+    throw new Error('E-posta ve şifre gereklidir');
+  }
+  
+  // Normalize email (trim and lowercase)
+  const normalizedEmail = email.trim().toLowerCase();
+  logger.info(`🔐 Login attempt for: ${normalizedEmail}`);
+  
+  // Find user (case-insensitive email search using Sequelize)
+  let user;
+  try {
+    user = await User.findOne({ 
+      where: db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('email')),
+        normalizedEmail
+      ),
+      include: [
+        { model: Student, as: 'student', include: [{ model: Department, as: 'department' }] },
+        { model: Faculty, as: 'faculty', include: [{ model: Department, as: 'department' }] },
+      ]
+    });
+  } catch (dbError) {
+    logger.error(`❌ Database error while finding user: ${normalizedEmail}`, {
+      error: dbError.message,
+      name: dbError.name,
+      code: dbError.code,
+    });
+    // Re-throw as a more user-friendly error
+    if (dbError.name === 'SequelizeConnectionError' || dbError.name === 'SequelizeConnectionRefusedError') {
+      throw new Error('Veritabanı bağlantı hatası. Lütfen daha sonra tekrar deneyin.');
+    }
+    throw dbError;
+  }
 
   if (!user) {
+    logger.warn(`❌ User not found: ${normalizedEmail}`);
     throw new Error('E-posta veya şifre hatalı');
   }
+  
+  logger.info(`✅ User found: ${user.id} (${user.email}), Active: ${user.is_active}, Verified: ${user.is_verified}`);
 
   // Email doğrulamasını zorunlu tutma
   // Hesap aktiflik kontrolü de devre dışı bırakıldı
 
   // Verify password
-  logger.info(`Attempting login for ${email}, comparing password...`);
-  logger.info(`Stored hash length: ${user.password_hash?.length || 0}`);
+  logger.info(`📝 Stored hash length: ${user.password_hash?.length || 0}`);
+  logger.info(`📝 Hash preview: ${user.password_hash?.substring(0, 20) || 'N/A'}...`);
   
-  const isValidPassword = await comparePassword(password, user.password_hash);
-  if (!isValidPassword) {
-    logger.warn(`Login failed for ${email}: Invalid password`);
-    logger.warn(`Password comparison failed. Hash exists: ${!!user.password_hash}`);
+  if (!user.password_hash) {
+    logger.error(`❌ No password hash found for user: ${normalizedEmail}`);
     throw new Error('E-posta veya şifre hatalı');
   }
   
-  logger.info(`Password verified successfully for user: ${email}`);
+  logger.info(`🔍 Comparing password...`);
+  try {
+    const isValidPassword = await comparePassword(password, user.password_hash);
+    if (!isValidPassword) {
+      logger.warn(`❌ Login failed for ${normalizedEmail}: Invalid password`);
+      logger.warn(`❌ Password comparison failed. Hash exists: ${!!user.password_hash}`);
+      // Don't reveal too much information for security
+      throw new Error('E-posta veya şifre hatalı');
+    }
+  } catch (error) {
+    // If password comparison itself fails (e.g., bcrypt error), log it
+    if (error.message !== 'E-posta veya şifre hatalı') {
+      logger.error(`❌ Password comparison error for ${normalizedEmail}:`, error);
+      throw new Error('Şifre doğrulama sırasında bir hata oluştu');
+    }
+    throw error;
+  }
+  
+  logger.info(`✅ Password verified successfully for user: ${normalizedEmail}`);
 
   // Her girişte hesabı aktif ve doğrulanmış hale getir
   if (!user.is_active || !user.is_verified) {

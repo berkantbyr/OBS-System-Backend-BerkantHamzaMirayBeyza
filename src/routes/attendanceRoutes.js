@@ -64,6 +64,9 @@ router.post('/sessions/:id/checkin', authenticate, authorize('student'), attenda
 // Get active sessions for student
 router.get('/active-sessions', authenticate, authorize('student'), attendanceController.getActiveSessions);
 
+// Get my sessions for excuse request (student)
+router.get('/my-sessions', authenticate, authorize('student'), attendanceController.getMySessions);
+
 // Get my attendance (student)
 router.get('/my-attendance', authenticate, authorize('student'), attendanceController.getMyAttendance);
 

@@ -8,6 +8,7 @@ const db = require('./models');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
+const { closeTransporter } = require('./services/emailService');
 
 // Local IP adresini al (ağdaki erişim için)
 const getLocalIP = () => {
@@ -28,7 +29,11 @@ const PORT = process.env.PORT || 5000;
 // CORS configuration - Allow multiple origins for different devices
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
   'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
   process.env.FRONTEND_URL,
   // Google Cloud Run frontend URL'leri
   'https://obs-frontend-214391529742.europe-west1.run.app',
@@ -104,6 +109,70 @@ app.get('/', (req, res) => {
 app.use(notFound);
 app.use(errorHandler);
 
+// Server instance for graceful shutdown
+let server = null;
+
+// Shutdown flag to prevent multiple shutdown attempts
+let isShuttingDown = false;
+
+// Graceful shutdown function
+const gracefulShutdown = async (signal) => {
+  // Prevent multiple shutdown attempts
+  if (isShuttingDown) {
+    logger.warn('Shutdown already in progress, ignoring duplicate signal.');
+    return;
+  }
+  
+  isShuttingDown = true;
+  logger.info(`\n${signal} received. Starting graceful shutdown...`);
+
+  const shutdown = async () => {
+    try {
+      // Close email transporter first (fast operation)
+      try {
+        await closeTransporter();
+        logger.info('Email transporter closed.');
+      } catch (emailError) {
+        logger.warn('Error closing email transporter:', emailError.message);
+      }
+
+      // Close database connection
+      try {
+        await db.sequelize.close();
+        logger.info('Database connection closed.');
+      } catch (dbError) {
+        logger.error('Error closing database connection:', dbError);
+      }
+
+      logger.info('Graceful shutdown completed.');
+      process.exit(0);
+    } catch (error) {
+      logger.error('Error during shutdown:', error);
+      process.exit(1);
+    }
+  };
+
+  if (server) {
+    // Stop accepting new connections
+    server.close(() => {
+      logger.info('HTTP server closed.');
+      shutdown();
+    });
+
+    // Force close after 5 seconds (reduced from 10)
+    setTimeout(() => {
+      logger.error('Forced shutdown after timeout.');
+      if (server) {
+        server.close(() => {});
+      }
+      shutdown();
+    }, 5000);
+  } else {
+    // If server is not running, just close connections
+    await shutdown();
+  }
+};
+
 // Database connection and server start
 const startServer = async () => {
   try {
@@ -132,28 +201,98 @@ const startServer = async () => {
 
     // Start server - 0.0.0.0 ile ağdaki diğer cihazlardan erişime izin ver
     const HOST = process.env.HOST || '0.0.0.0';
-    app.listen(PORT, HOST, () => {
+    server = app.listen(PORT, HOST, () => {
       logger.info(`Server is running on ${HOST}:${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Local: http://localhost:${PORT}`);
       logger.info(`Network: http://${getLocalIP()}:${PORT}`);
     });
+
+    // Handle server errors
+    server.on('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        logger.error(`Port ${PORT} is already in use. Please free the port or use a different one.`);
+      } else {
+        logger.error('Server error:', error);
+      }
+      process.exit(1);
+    });
   } catch (error) {
     logger.error('Unable to start server:', error);
+    // Close database if it was opened
+    try {
+      await db.sequelize.close();
+    } catch (dbError) {
+      // Ignore errors during cleanup
+    }
     process.exit(1);
   }
 };
 
 // Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   logger.error('Uncaught Exception:', error);
-  process.exit(1);
+  // Try graceful shutdown even on uncaught exception
+  if (!isShuttingDown) {
+    await gracefulShutdown('UNCAUGHT_EXCEPTION');
+  }
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  // Don't exit on unhandled rejection, just log it
+  // This allows the server to continue running
 });
+
+// Handle beforeExit (fires when event loop is empty)
+process.on('beforeExit', (code) => {
+  if (!isShuttingDown && server) {
+    logger.info('beforeExit event received, initiating graceful shutdown...');
+    gracefulShutdown('BEFORE_EXIT');
+  }
+});
+
+// Handle termination signals (SIGTERM, SIGINT)
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+// Handle Windows termination (CMD X button, etc.)
+if (process.platform === 'win32') {
+  // Handle stdin close (when terminal is closed)
+  if (process.stdin.isTTY) {
+    process.stdin.on('close', () => {
+      logger.info('stdin closed, initiating shutdown...');
+      gracefulShutdown('STDIN_CLOSE');
+    });
+  }
+
+  // Handle readline for Ctrl+C
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  rl.on('SIGINT', () => {
+    gracefulShutdown('SIGINT');
+  });
+
+  // Handle process exit (last resort)
+  process.on('exit', (code) => {
+    if (!isShuttingDown) {
+      logger.warn(`Process exiting with code ${code}, attempting cleanup...`);
+      // Try to close connections synchronously
+      try {
+        if (db.sequelize) {
+          db.sequelize.close().catch(() => {});
+        }
+      } catch (e) {
+        // Ignore errors during exit
+      }
+    }
+  });
+}
 
 // Start the server
 startServer();

@@ -1,5 +1,5 @@
 const db = require('../models');
-const { Enrollment, CourseSection, Course, Student } = db;
+const { Enrollment, CourseSection, Course, Student, User, Department } = db;
 const { Op } = require('sequelize');
 
 /**
@@ -271,8 +271,8 @@ class GradeCalculationService {
   async getTranscript(studentId) {
     const student = await Student.findByPk(studentId, {
       include: [
-        { model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
-        { model: db.Department, as: 'department', attributes: ['name', 'code'] },
+        { model: User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
+        { model: Department, as: 'department', attributes: ['name', 'code'] },
       ],
     });
 
