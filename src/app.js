@@ -180,22 +180,20 @@ const startServer = async () => {
     await db.sequelize.authenticate();
     logger.info('Database connection established successfully');
 
-    // Sync database (in development)
+    // Sync database
     // Note: alter: true can cause issues with too many indexes
     // Use force: false to avoid dropping tables, and only sync if needed
-    if (process.env.NODE_ENV === 'development') {
-      try {
-        // Try alter first, but catch errors if too many indexes
-        await db.sequelize.sync({ alter: true });
-        logger.info('Database synced with alter');
-      } catch (syncError) {
-        // If alter fails (e.g., too many indexes), just authenticate
-        if (syncError.message.includes('Too many keys') || syncError.message.includes('max 64 keys')) {
-          logger.warn('Database sync with alter failed due to index limit. Tables already exist, continuing...');
-          logger.warn('If you need to modify schema, use migrations instead of sync');
-        } else {
-          throw syncError;
-        }
+    try {
+      // Try alter first, but catch errors if too many indexes
+      await db.sequelize.sync({ alter: true });
+      logger.info('Database synced with alter');
+    } catch (syncError) {
+      // If alter fails (e.g., too many indexes), just authenticate
+      if (syncError.message.includes('Too many keys') || syncError.message.includes('max 64 keys')) {
+        logger.warn('Database sync with alter failed due to index limit. Tables already exist, continuing...');
+        logger.warn('If you need to modify schema, use migrations instead of sync');
+      } else {
+        throw syncError;
       }
     }
 
