@@ -54,6 +54,72 @@ steps:
       - '--set-secrets'
       - 'DB_HOST=DB_HOST:latest,DB_USER=DB_USER:latest,DB_PASSWORD=DB_PASSWORD:latest,DB_NAME=DB_NAME:latest,JWT_SECRET=JWT_SECRET:latest'
 
+  # Seed veritabanı (otomatik - her deploy'da çalışır)
+  # findOrCreate kullandığı için veriler tekrar oluşturulmaz, güvenli
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        echo "🌱 Veritabanı seed işlemi başlatılıyor..."
+        
+        # Cloud SQL instance name'ini DB_HOST secret'ından al
+        DB_HOST_VALUE=$(gcloud secrets versions access latest --secret=DB_HOST --project=$PROJECT_ID 2>/dev/null || echo "")
+        
+        # Eğer DB_HOST /cloudsql/ ile başlıyorsa, Cloud SQL instance name'ini çıkar
+        if [[ "$DB_HOST_VALUE" == /cloudsql/* ]]; then
+          SQL_INSTANCE=$(echo "$DB_HOST_VALUE" | sed 's|/cloudsql/||')
+          echo "📊 Cloud SQL Instance: $SQL_INSTANCE"
+          CLOUDSQL_ARG="--add-cloudsql-instances $SQL_INSTANCE"
+        else
+          echo "📊 Normal DB Host kullanılıyor"
+          CLOUDSQL_ARG=""
+        fi
+        
+        # Seed job'unu oluştur veya güncelle
+        if gcloud run jobs describe seed-database --region=europe-west1 --project=$PROJECT_ID >/dev/null 2>&1; then
+          echo "🔄 Mevcut seed job güncelleniyor..."
+          gcloud run jobs update seed-database \
+            --image gcr.io/$PROJECT_ID/obs-api:$COMMIT_SHA \
+            --region europe-west1 \
+            --project=$PROJECT_ID \
+            $CLOUDSQL_ARG \
+            --set-env-vars "NODE_ENV=production" \
+            --set-secrets "DB_HOST=DB_HOST:latest,DB_USER=DB_USER:latest,DB_PASSWORD=DB_PASSWORD:latest,DB_NAME=DB_NAME:latest,JWT_SECRET=JWT_SECRET:latest" \
+            --command "node" \
+            --args "src/seeders/seedPart2Data.js" \
+            --max-retries 1 \
+            --task-timeout 10m \
+            --memory 512Mi \
+            --cpu 1 \
+            --quiet
+        else
+          echo "🆕 Yeni seed job oluşturuluyor..."
+          gcloud run jobs create seed-database \
+            --image gcr.io/$PROJECT_ID/obs-api:$COMMIT_SHA \
+            --region europe-west1 \
+            --project=$PROJECT_ID \
+            $CLOUDSQL_ARG \
+            --set-env-vars "NODE_ENV=production" \
+            --set-secrets "DB_HOST=DB_HOST:latest,DB_USER=DB_USER:latest,DB_PASSWORD=DB_PASSWORD:latest,DB_NAME=DB_NAME:latest,JWT_SECRET=JWT_SECRET:latest" \
+            --command "node" \
+            --args "src/seeders/seedPart2Data.js" \
+            --max-retries 1 \
+            --task-timeout 10m \
+            --memory 512Mi \
+            --cpu 1 \
+            --quiet
+        fi
+        
+        # Job'u çalıştır
+        echo "▶️ Seed job çalıştırılıyor..."
+        gcloud run jobs execute seed-database \
+          --region europe-west1 \
+          --project=$PROJECT_ID \
+          --wait
+        
+        echo "✅ Seed işlemi tamamlandı!"
+
 # Store images in Container Registry
 images:
   - 'gcr.io/$PROJECT_ID/obs-api:$COMMIT_SHA'
