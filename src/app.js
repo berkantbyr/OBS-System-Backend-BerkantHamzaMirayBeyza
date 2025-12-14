@@ -173,6 +173,21 @@ const gracefulShutdown = async (signal) => {
   }
 };
 
+// Initialize background jobs (if enabled)
+const initializeBackgroundJobs = () => {
+  if (process.env.ENABLE_BACKGROUND_JOBS === 'true') {
+    try {
+      const { initializeJobs } = require('./jobs');
+      initializeJobs();
+      logger.info('Background jobs initialized');
+    } catch (error) {
+      logger.warn('Failed to initialize background jobs:', error.message);
+    }
+  } else {
+    logger.info('Background jobs disabled (set ENABLE_BACKGROUND_JOBS=true to enable)');
+  }
+};
+
 // Database connection and server start
 const startServer = async () => {
   try {
@@ -204,6 +219,9 @@ const startServer = async () => {
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Local: http://localhost:${PORT}`);
       logger.info(`Network: http://${getLocalIP()}:${PORT}`);
+      
+      // Initialize background jobs after server starts
+      initializeBackgroundJobs();
     });
 
     // Handle server errors

@@ -1,6 +1,7 @@
 const db = require('../models');
 const { AttendanceSession, AttendanceRecord, Enrollment, CourseSection, Student, ExcuseRequest } = db;
 const { Op } = require('sequelize');
+const logger = require('../utils/logger');
 
 /**
  * AttendanceService - Handles GPS distance calculation and spoofing detection

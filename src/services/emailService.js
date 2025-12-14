@@ -387,12 +387,174 @@ const sendAttendanceSessionEmail = async (to, firstName, courseCode, courseName,
   });
 };
 
+/**
+ * Send absence warning email to student
+ * @param {string} to - Student email
+ * @param {string} firstName - Student's first name
+ * @param {string} courseCode - Course code
+ * @param {string} courseName - Course name
+ * @param {number} absenceRate - Absence rate percentage
+ * @param {number} absences - Number of absences
+ * @param {number} totalSessions - Total sessions
+ */
+const sendAbsenceWarningEmail = async (to, firstName, courseCode, courseName, absenceRate, absences, totalSessions) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .warning-box { background: #fff3cd; border: 2px solid #ffc107; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .stats-box { background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .stats-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .stats-row:last-child { border-bottom: none; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>⚠️ Devamsızlık Uyarısı</h1>
+        </div>
+        <div class="content">
+          <h2>Merhaba ${firstName},</h2>
+          
+          <div class="warning-box">
+            <p><strong>⚠️ Uyarı:</strong> <strong>${courseCode} - ${courseName}</strong> dersindeki devamsızlık oranınız %${absenceRate}'e ulaşmıştır.</p>
+          </div>
+          
+          <div class="stats-box">
+            <div class="stats-row">
+              <span><strong>Ders:</strong></span>
+              <span>${courseCode} - ${courseName}</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Toplam Oturum:</strong></span>
+              <span>${totalSessions}</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Devamsızlık:</strong></span>
+              <span>${absences} oturum</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Devamsızlık Oranı:</strong></span>
+              <span style="color: #e74c3c; font-weight: bold;">%${absenceRate}</span>
+            </div>
+          </div>
+          
+          <p>Yönetmeliğe göre, devamsızlık oranının %30'u geçmesi durumunda dersten kalınmaktadır. Lütfen derslerinize devam etmeye özen gösteriniz.</p>
+          
+          <p>Mazeret belgelerinizi sisteme yükleyerek devamsızlıklarınızın mazeret olarak değerlendirilmesini talep edebilirsiniz.</p>
+        </div>
+        <div class="footer">
+          <p>© 2024 Üniversite OBS. Tüm hakları saklıdır.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `⚠️ ${courseCode} - Devamsızlık Uyarısı - Üniversite OBS`,
+    html,
+  });
+};
+
+/**
+ * Send critical absence warning email to student (>30% absence)
+ * @param {string} to - Student email
+ * @param {string} firstName - Student's first name
+ * @param {string} courseCode - Course code
+ * @param {string} courseName - Course name
+ * @param {number} absenceRate - Absence rate percentage
+ * @param {number} absences - Number of absences
+ * @param {number} totalSessions - Total sessions
+ */
+const sendCriticalAbsenceWarningEmail = async (to, firstName, courseCode, courseName, absenceRate, absences, totalSessions) => {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
+        .critical-box { background: #f8d7da; border: 2px solid #dc3545; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .stats-box { background: white; border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        .stats-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .stats-row:last-child { border-bottom: none; }
+        .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🚨 Kritik Devamsızlık Uyarısı</h1>
+        </div>
+        <div class="content">
+          <h2>Merhaba ${firstName},</h2>
+          
+          <div class="critical-box">
+            <p><strong>🚨 KRİTİK UYARI:</strong> <strong>${courseCode} - ${courseName}</strong> dersindeki devamsızlık oranınız %${absenceRate}'e ulaşmıştır ve %30 sınırını geçmiştir!</p>
+            <p><strong>Bu durumda yönetmelik gereği dersten kalma riski bulunmaktadır.</strong></p>
+          </div>
+          
+          <div class="stats-box">
+            <div class="stats-row">
+              <span><strong>Ders:</strong></span>
+              <span>${courseCode} - ${courseName}</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Toplam Oturum:</strong></span>
+              <span>${totalSessions}</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Devamsızlık:</strong></span>
+              <span style="color: #c0392b; font-weight: bold;">${absences} oturum</span>
+            </div>
+            <div class="stats-row">
+              <span><strong>Devamsızlık Oranı:</strong></span>
+              <span style="color: #c0392b; font-weight: bold;">%${absenceRate}</span>
+            </div>
+          </div>
+          
+          <p>Lütfen derhal:</p>
+          <ol>
+            <li>Mazeret belgelerinizi sisteme yükleyiniz</li>
+            <li>Ders sorumlusu ile iletişime geçiniz</li>
+            <li>Danışmanınızla görüşünüz</li>
+          </ol>
+          
+          <p style="color: #c0392b;"><strong>Uyarı:</strong> Mazeretli hale getirilmeyen devamsızlıklar durumunda dersten kalabilirsiniz.</p>
+        </div>
+        <div class="footer">
+          <p>© 2024 Üniversite OBS. Tüm hakları saklıdır.</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `🚨 ${courseCode} - KRİTİK Devamsızlık Uyarısı - Üniversite OBS`,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendGradeUpdateEmail,
   sendAttendanceSessionEmail,
+  sendAbsenceWarningEmail,
+  sendCriticalAbsenceWarningEmail,
   closeTransporter,
 };
 
