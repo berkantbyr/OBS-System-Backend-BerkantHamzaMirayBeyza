@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
+const { validateCampusIP, logClientIP } = require('../middleware/ipValidation');
 const attendanceController = require('../controllers/attendanceController');
 const excuseController = require('../controllers/excuseController');
 const multer = require('multer');
@@ -56,8 +57,14 @@ router.get('/sessions/:id', authenticate, attendanceController.getSession);
 // Close session (faculty)
 router.put('/sessions/:id/close', authenticate, authorize('faculty', 'admin'), attendanceController.closeSession);
 
-// Student check-in
-router.post('/sessions/:id/checkin', authenticate, authorize('student'), attendanceController.checkIn);
+// Student check-in (requires campus IP)
+router.post('/sessions/:id/checkin', authenticate, authorize('student'), validateCampusIP, attendanceController.checkIn);
+
+// Regenerate QR code (faculty) - 5 second refresh
+router.post('/sessions/:id/regenerate-qr', authenticate, authorize('faculty', 'admin'), attendanceController.regenerateQRCode);
+
+// Get current QR code for session (student)
+router.get('/sessions/:id/qr', authenticate, authorize('student'), attendanceController.getCurrentQRCode);
 
 // ========== Student Routes ==========
 

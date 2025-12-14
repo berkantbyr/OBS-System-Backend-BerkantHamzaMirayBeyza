@@ -13,15 +13,15 @@ const { User, Student, Faculty, Department, RefreshToken } = db;
 const getProfile = async (userId) => {
   const user = await User.findByPk(userId, {
     include: [
-      { 
-        model: Student, 
-        as: 'student', 
-        include: [{ model: Department, as: 'department' }] 
+      {
+        model: Student,
+        as: 'student',
+        include: [{ model: Department, as: 'department' }]
       },
-      { 
-        model: Faculty, 
-        as: 'faculty', 
-        include: [{ model: Department, as: 'department' }] 
+      {
+        model: Faculty,
+        as: 'faculty',
+        include: [{ model: Department, as: 'department' }]
       },
     ],
   });
@@ -121,43 +121,64 @@ const changePassword = async (userId, currentPassword, newPassword) => {
  * @returns {Object} Users list with pagination
  */
 const getAllUsers = async (options = {}) => {
-  const { 
-    page = 1, 
-    limit = 10, 
-    role, 
+  const {
+    page = 1,
+    limit = 10,
+    role,
+    is_active,
     departmentId,
     search,
     sortBy = 'created_at',
     sortOrder = 'DESC'
   } = options;
 
-  const offset = (page - 1) * limit;
+  // Ensure numeric values
+  const pageNum = parseInt(page) || 1;
+  const limitNum = parseInt(limit) || 10;
+  const offset = (pageNum - 1) * limitNum;
   const where = {};
 
+  // Debug log
+  logger.info('getAllUsers filters:', { role, is_active, search, page: pageNum, limit: limitNum });
+
   // Filter by role
-  if (role) {
+  if (role && role !== '') {
     where.role = role;
   }
 
-  // Search by name or email
+  // Filter by active status
+  if (is_active !== undefined && is_active !== '') {
+    where.is_active = is_active === 'true' || is_active === true;
+  }
+
+  // Search by name or email (MySQL uses LIKE, not ILIKE)
   if (search) {
     where[Op.or] = [
-      { first_name: { [Op.iLike]: `%${search}%` } },
-      { last_name: { [Op.iLike]: `%${search}%` } },
-      { email: { [Op.iLike]: `%${search}%` } },
+      db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('User.first_name')),
+        { [Op.like]: `%${search.toLowerCase()}%` }
+      ),
+      db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('User.last_name')),
+        { [Op.like]: `%${search.toLowerCase()}%` }
+      ),
+      db.sequelize.where(
+        db.sequelize.fn('LOWER', db.sequelize.col('User.email')),
+        { [Op.like]: `%${search.toLowerCase()}%` }
+      ),
     ];
   }
 
   const include = [
-    { 
-      model: Student, 
-      as: 'student', 
+    {
+      model: Student,
+      as: 'student',
       include: [{ model: Department, as: 'department' }],
       ...(departmentId && { where: { department_id: departmentId } }),
     },
-    { 
-      model: Faculty, 
-      as: 'faculty', 
+    {
+      model: Faculty,
+      as: 'faculty',
       include: [{ model: Department, as: 'department' }],
       ...(departmentId && { where: { department_id: departmentId } }),
     },
@@ -166,7 +187,7 @@ const getAllUsers = async (options = {}) => {
   const { count, rows } = await User.findAndCountAll({
     where,
     include,
-    limit,
+    limit: limitNum,
     offset,
     order: [[sortBy, sortOrder]],
     distinct: true,
@@ -176,9 +197,9 @@ const getAllUsers = async (options = {}) => {
     users: rows.map(user => user.toSafeObject()),
     pagination: {
       total: count,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(count / limit),
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(count / limitNum),
     },
   };
 };
@@ -191,15 +212,15 @@ const getAllUsers = async (options = {}) => {
 const getUserById = async (userId) => {
   const user = await User.findByPk(userId, {
     include: [
-      { 
-        model: Student, 
-        as: 'student', 
-        include: [{ model: Department, as: 'department' }] 
+      {
+        model: Student,
+        as: 'student',
+        include: [{ model: Department, as: 'department' }]
       },
-      { 
-        model: Faculty, 
-        as: 'faculty', 
-        include: [{ model: Department, as: 'department' }] 
+      {
+        model: Faculty,
+        as: 'faculty',
+        include: [{ model: Department, as: 'department' }]
       },
     ],
   });

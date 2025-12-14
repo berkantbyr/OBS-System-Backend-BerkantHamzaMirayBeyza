@@ -67,6 +67,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
     },
+    // QR code expiration time (for 5-second refresh)
+    qr_expires_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     tableName: 'attendance_sessions',
     timestamps: true,
@@ -91,6 +96,10 @@ module.exports = (sequelize, DataTypes) => {
         // Generate unique QR code
         if (!session.qr_code) {
           session.qr_code = `ATT-${uuidv4().substring(0, 8).toUpperCase()}-${Date.now()}`;
+        }
+        // Set QR expiration time (15 seconds from now)
+        if (!session.qr_expires_at) {
+          session.qr_expires_at = new Date(Date.now() + 15000);
         }
       },
     },

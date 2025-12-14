@@ -43,13 +43,13 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    
+
     // Check if origin is in allowed list or matches local network pattern
     const isLocalNetwork = /^http:\/\/(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)\d+\.\d+(:\d+)?$/.test(origin);
     // Google Cloud Run URL pattern
     const isCloudRun = /^https:\/\/.*\.run\.app$/.test(origin);
     const isAllowed = allowedOrigins.includes(origin) || isLocalNetwork || isCloudRun;
-    
+
     if (isAllowed) {
       callback(null, true);
     } else {
@@ -122,7 +122,7 @@ const gracefulShutdown = async (signal) => {
     logger.warn('Shutdown already in progress, ignoring duplicate signal.');
     return;
   }
-  
+
   isShuttingDown = true;
   logger.info(`\n${signal} received. Starting graceful shutdown...`);
 
@@ -163,7 +163,7 @@ const gracefulShutdown = async (signal) => {
     setTimeout(() => {
       logger.error('Forced shutdown after timeout.');
       if (server) {
-        server.close(() => {});
+        server.close(() => { });
       }
       shutdown();
     }, 5000);
@@ -219,7 +219,7 @@ const startServer = async () => {
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Local: http://localhost:${PORT}`);
       logger.info(`Network: http://${getLocalIP()}:${PORT}`);
-      
+
       // Initialize background jobs after server starts
       initializeBackgroundJobs();
     });
@@ -276,7 +276,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 // Handle Windows termination (CMD X button, etc.)
 if (process.platform === 'win32') {
   // Handle stdin close (when terminal is closed)
-  if (process.stdin.isTTY) {
+  if (process.stdin.isTTY && process.env.NODE_ENV !== 'test') {
     process.stdin.on('close', () => {
       logger.info('stdin closed, initiating shutdown...');
       gracefulShutdown('STDIN_CLOSE');
@@ -301,7 +301,7 @@ if (process.platform === 'win32') {
       // Try to close connections synchronously
       try {
         if (db.sequelize) {
-          db.sequelize.close().catch(() => {});
+          db.sequelize.close().catch(() => { });
         }
       } catch (e) {
         // Ignore errors during exit
@@ -311,7 +311,10 @@ if (process.platform === 'win32') {
 }
 
 // Start the server
-startServer();
+// Start the server only if not in test mode
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 module.exports = app;
 

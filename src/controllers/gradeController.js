@@ -152,8 +152,15 @@ const getTranscript = async (req, res) => {
  * Get transcript as PDF
  * GET /api/v1/grades/transcript/pdf
  */
+/**
+ * Get transcript as PDF
+ * GET /api/v1/grades/transcript/pdf
+ */
 const getTranscriptPDF = async (req, res) => {
   try {
+    const PDFDocument = require('pdfkit');
+    const fs = require('fs');
+
     logger.info(`📄 Get transcript PDF - User: ${req.user.id}`);
 
     // Get student ID from user
@@ -168,27 +175,160 @@ const getTranscriptPDF = async (req, res) => {
 
     logger.info(`✅ Student found: ${student.id} (${student.student_number})`);
     const transcript = await gradeCalculationService.getTranscript(student.id);
-    logger.info(`✅ Transcript data fetched, generating HTML`);
+    logger.info(`✅ Transcript data fetched, generating PDF`);
 
-    // Generate HTML for PDF
-    const html = generateTranscriptHTML(transcript);
+    // Create a document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margin: 40
+    });
 
-    // For now, return HTML (can be converted to PDF with Puppeteer in production)
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Content-Disposition', `attachment; filename=transcript_${student.student_number}.html`);
-    logger.info(`✅ Transcript HTML generated and sent`);
-    res.send(html);
+    // Set response headers
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=transkript_${student.student_number}.pdf`);
+
+    // Pipe the document to response
+    doc.pipe(res);
+
+    // Try to load Font (Arial for Turkish support)
+    let fontPath = 'Helvetica'; // Default fallback
+    const windowsFontPath = 'C:\\Windows\\Fonts\\arial.ttf';
+    if (fs.existsSync(windowsFontPath)) {
+      fontPath = windowsFontPath;
+    }
+
+    // Helper for Turkish chars
+    const tr = (text) => text || '';
+
+    doc.font(fontPath);
+
+    // --- HEADER ---
+    doc.fontSize(20).text('ÜNİVERSİTE OBS SİSTEMİ', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(14).text('RESMİ TRANSKRİPT (NOT DÖKÜMÜ)', { align: 'center', underline: true });
+    doc.moveDown(2);
+
+    // --- STUDENT INFO ---
+    doc.fontSize(10);
+    const infoX = 50;
+    const valueX = 160;
+    const infoX2 = 320;
+    const valueX2 = 400;
+    let y = doc.y;
+
+    doc.text('Öğrenci No', infoX, y);
+    doc.text(': ' + transcript.student.studentNumber, valueX, y);
+    doc.text('T.C. Kimlik No', infoX2, y);
+    doc.text(': ***********' + (transcript.student.citizenshipId?.slice(-2) || 'XX'), valueX2, y);
+    y += 15;
+
+    doc.text('Adı Soyadı', infoX, y);
+    doc.text(': ' + tr(`${transcript.student.firstName} ${transcript.student.lastName}`), valueX, y);
+    doc.text('Kayıt Tarihi', infoX2, y);
+    doc.text(': ' + (transcript.student.enrollmentDate || '-'), valueX2, y);
+    y += 15;
+
+    doc.text('Bölüm', infoX, y);
+    doc.text(': ' + tr(transcript.student.department || '-'), valueX, y);
+    y += 25;
+
+    doc.y = y;
+
+    // --- GRADES TABLE ---
+    const semesterNames = {
+      fall: 'Güz',
+      spring: 'Bahar',
+      summer: 'Yaz',
+    };
+
+    const colX = { code: 50, name: 130, cred: 380, grade: 430, point: 480 };
+
+    transcript.semesters.forEach(sem => {
+      // Check page break
+      if (doc.y > 700) doc.addPage();
+
+      // Semester Header
+      doc.rect(40, doc.y, 515, 20).fill('#f0f0f0');
+      doc.fillColor('black');
+      doc.fontSize(11).font(fontPath).text(
+        `${sem.year} - ${tr(semesterNames[sem.semester] || sem.semester)} Dönemi`,
+        50, doc.y - 15
+      );
+      doc.moveDown(0.5);
+
+      // Table Headers
+      doc.fontSize(9).font(fontPath);
+      const headersY = doc.y;
+      doc.text('Ders Kodu', colX.code, headersY);
+      doc.text('Ders Adı', colX.name, headersY);
+      doc.text('Kredi', colX.cred, headersY);
+      doc.text('Not', colX.grade, headersY);
+      doc.text('Puan', colX.point, headersY);
+
+      doc.moveTo(40, doc.y + 2).lineTo(555, doc.y + 2).stroke();
+      doc.moveDown(0.5);
+
+      // Courses
+      sem.courses.forEach(course => {
+        if (doc.y > 750) {
+          doc.addPage();
+          doc.fontSize(9).font(fontPath); // Reset font after new page
+        }
+
+        const rowY = doc.y;
+        doc.text(course.code, colX.code, rowY);
+        doc.text(tr(course.name).substring(0, 45), colX.name, rowY, { width: 240 });
+        doc.text(course.credits, colX.cred, rowY);
+        doc.text(course.letterGrade || '-', colX.grade, rowY);
+        doc.text(course.gradePoint?.toFixed(2) || '-', colX.point, rowY);
+
+        doc.moveDown(0.8);
+      });
+
+      // Semester Summary
+      doc.moveDown(0.5);
+      doc.fontSize(10).font(fontPath);
+      doc.text(
+        `Dönem Ortalaması (GPA): ${sem.gpa.toFixed(2)}       Dönem Kredisi: ${sem.totalCredits}`,
+        { align: 'right' }
+      );
+      doc.moveDown(1.5);
+    });
+
+    // --- OVERALL SUMMARY ---
+    doc.moveDown(1);
+    doc.rect(40, doc.y, 515, 60).stroke();
+    const summaryY = doc.y - 50;
+
+    doc.fontSize(12).text('GENEL ÖZET', 50, summaryY + 10, { align: 'center', width: 500 });
+
+    doc.fontSize(10);
+    doc.text(`Genel Not Ortalaması (CGPA): ${transcript.academic.cgpa.toFixed(2)}`, 60, summaryY + 35);
+    doc.text(`Toplam Kredi: ${transcript.academic.totalCredits}`, 300, summaryY + 35);
+
+    // --- FOOTER ---
+    const bottom = doc.page.height - 50;
+    doc.fontSize(8).text(
+      `Bu belge ${new Date(transcript.generatedAt).toLocaleString('tr-TR')} tarihinde oluşturulmuştur. Elektronik ortamda üretilmiştir, ıslak imza gerektirmez.`,
+      50, bottom, { align: 'center', width: 500 }
+    );
+
+    doc.end();
+    logger.info(`✅ Transcript PDF generated and sent`);
+
   } catch (error) {
     logger.error('❌ Get transcript PDF error:', {
       error: error.message,
       stack: error.stack,
       user: req.user?.id,
     });
-    res.status(500).json({
-      success: false,
-      message: 'Transkript PDF oluşturulurken hata oluştu',
-      error: error.message,
-    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Transkript PDF oluşturulurken hata oluştu',
+        error: error.message,
+      });
+    }
   }
 };
 

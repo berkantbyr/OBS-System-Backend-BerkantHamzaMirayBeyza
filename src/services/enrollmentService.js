@@ -62,12 +62,7 @@ class EnrollmentService {
 
       if (existingEnrollment) {
         logger.warn(`❌ Existing enrollment found: ${existingEnrollment.id}, Status: ${existingEnrollment.status}`);
-        if (existingEnrollment.status === 'enrolled') {
-          throw new Error('Bu section\'a zaten kayıtlısınız');
-        }
-        if (existingEnrollment.status === 'dropped') {
-          throw new Error('Bırakılan bir derse tekrar kayıt olamazsınız');
-        }
+        throw new Error(`Bu section için zaten bir kaydınız var (Durum: ${existingEnrollment.status})`);
       }
 
       // Check if enrolled in another section of the same course this semester
@@ -108,10 +103,10 @@ class EnrollmentService {
       // Check schedule conflicts
       logger.info(`🔍 Checking schedule conflicts`);
       const conflictResult = await scheduleConflictService.checkScheduleConflict(studentId, sectionId);
-      
+
       // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
       const allowConflicts = process.env.ALLOW_SCHEDULE_CONFLICTS === 'true';
-      
+
       if (conflictResult.hasConflict && !allowConflicts) {
         const conflictInfo = conflictResult.conflicts[0];
         const dayNames = {
@@ -129,7 +124,7 @@ class EnrollmentService {
           `${conflictInfo.existingCourse.code} dersi ile ${conflictDay} günü program çakışması var`
         );
       }
-      
+
       if (conflictResult.hasConflict && allowConflicts) {
         logger.warn(`⚠️ Schedule conflict detected but allowed (ALLOW_SCHEDULE_CONFLICTS=true)`);
         const conflictInfo = conflictResult.conflicts[0];
@@ -405,6 +400,7 @@ class EnrollmentService {
       hasCapacity: section.enrolled_count < section.capacity,
       prerequisites: await prerequisiteService.checkPrerequisites(studentId, section.course_id),
       scheduleConflict: await scheduleConflictService.checkScheduleConflict(studentId, sectionId),
+      existingEnrollment: await Enrollment.findOne({ where: { student_id: studentId, section_id: sectionId } }),
     };
 
     // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
@@ -414,6 +410,7 @@ class EnrollmentService {
 
     if (!checks.isActive) issues.push('Section aktif değil');
     if (!checks.hasCapacity) issues.push('Section dolu');
+    if (checks.existingEnrollment) issues.push(`Bu section için zaten kaydınız var (Durum: ${checks.existingEnrollment.status})`);
     if (!checks.prerequisites.satisfied) {
       issues.push(`Eksik önkoşullar: ${checks.prerequisites.missing.map((m) => m.courseCode).join(', ')}`);
     }

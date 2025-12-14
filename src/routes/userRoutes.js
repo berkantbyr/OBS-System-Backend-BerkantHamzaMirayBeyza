@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const userController = require('../controllers/userController');
+const certificateController = require('../controllers/certificateController');
 const { authenticate, authorize } = require('../middleware/auth');
 const { uploadProfilePicture, handleUploadError } = require('../middleware/upload');
 const validate = require('../middleware/validate');
@@ -38,6 +39,55 @@ router.post('/me/profile-picture', uploadProfilePicture, handleUploadError, user
 router.put('/me/password', validate(passwordChangeSchema), userController.changePassword);
 
 // Admin only routes
+/**
+ * @route   GET /api/v1/users/faculty
+ * @desc    Get all faculty members (for dropdowns)
+ * @access  Admin only
+ */
+router.get('/faculty', authorize('admin'), userController.getAllFaculty);
+
+/**
+ * @route   GET /api/v1/users/departments
+ * @desc    Get all departments (for dropdowns)
+ * @access  Authenticated
+ */
+router.get('/departments', userController.getAllDepartments);
+
+/**
+ * @route   GET /api/v1/users/students/certificate
+ * @desc    Generate student certificate PDF
+ * @access  Student only
+ */
+router.get('/students/certificate', authorize('student'), certificateController.generateCertificate);
+
+/**
+ * @route   GET /api/v1/users/students/profile
+ * @desc    Get student profile with department info
+ * @access  Student only
+ */
+router.get('/students/profile', authorize('student'), userController.getStudentProfile);
+
+/**
+ * @route   PUT /api/v1/users/students/department
+ * @desc    Update student department
+ * @access  Student only
+ */
+router.put('/students/department', authorize('student'), userController.updateStudentDepartment);
+
+/**
+ * @route   GET /api/v1/users/faculty/profile
+ * @desc    Get faculty profile with department info
+ * @access  Faculty only
+ */
+router.get('/faculty/profile', authorize('faculty'), userController.getFacultyProfile);
+
+/**
+ * @route   PUT /api/v1/users/faculty/department
+ * @desc    Update faculty department
+ * @access  Faculty only
+ */
+router.put('/faculty/department', authorize('faculty'), userController.updateFacultyDepartment);
+
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users (with pagination, filtering, search)

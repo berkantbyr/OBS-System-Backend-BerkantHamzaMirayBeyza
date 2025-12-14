@@ -66,6 +66,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'present',
     },
+    // Client IP address for audit trail
+    client_ip: {
+      type: DataTypes.STRING(45), // IPv6 addresses can be up to 45 chars
+      allowNull: true,
+    },
   }, {
     tableName: 'attendance_records',
     timestamps: true,

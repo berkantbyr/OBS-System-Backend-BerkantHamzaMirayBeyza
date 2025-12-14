@@ -75,10 +75,19 @@ const enrollInCourse = async (req, res) => {
       user: req.user?.id,
       section_id: req.body?.section_id,
     });
-    
+
     // Determine appropriate status code
     let statusCode = 400;
-    if (error.message.includes('not found')) {
+    let message = error.message;
+
+    // Handle Sequelize Validation Errors
+    if (error.name === 'SequelizeValidationError' || error.name === 'SequelizeUniqueConstraintError') {
+      message = error.errors.map(e => e.message).join(', ');
+      // If message is still generic "Validation error", provide more detail
+      if (message === 'Validation error') {
+        message = `Geçersiz veri: ${error.errors.map(e => `${e.path} (${e.value})`).join(', ')}`;
+      }
+    } else if (error.message.includes('not found')) {
       statusCode = 404;
     } else if (error.message.includes('already') || error.message.includes('full')) {
       statusCode = 409; // Conflict
@@ -86,7 +95,7 @@ const enrollInCourse = async (req, res) => {
 
     res.status(statusCode).json({
       success: false,
-      message: error.message || 'Ders kaydı yapılırken hata oluştu',
+      message: message || 'Ders kaydı yapılırken hata oluştu',
     });
   }
 };
@@ -128,7 +137,7 @@ const dropCourse = async (req, res) => {
       user: req.user?.id,
       enrollmentId: req.params?.id,
     });
-    
+
     // Determine appropriate status code
     let statusCode = 400;
     if (error.message.includes('not found')) {

@@ -380,6 +380,7 @@ const getInstructorSessions = async (req, res) => {
 
           return {
             id: s.id,
+            sectionId: s.section_id,
             course: {
               code: s.section.course.code,
               name: s.section.course.name,
@@ -430,6 +431,13 @@ const checkIn = async (req, res) => {
       // Verify QR code
       const session = await AttendanceSession.findByPk(id);
       if (session && session.qr_code === qr_code) {
+        // Check if QR code is expired
+        if (session.qr_expires_at && new Date() > new Date(session.qr_expires_at)) {
+          return res.status(400).json({
+            success: false,
+            message: 'QR kodunun süresi dolmuş. Lütfen güncel QR kodu tarayın.',
+          });
+        }
         method = 'qr_code';
       } else {
         return res.status(400).json({
@@ -509,7 +517,7 @@ const getMyAttendance = async (req, res) => {
           logger.info(`📈 Calculating attendance stats for section: ${e.section_id}`);
           const stats = await attendanceService.getStudentAttendanceStats(student.id, e.section_id);
           logger.info(`✅ Stats calculated for ${e.section?.course?.code}: ${stats.attendancePercentage}% (${stats.status})`);
-          
+
           return {
             course: {
               id: e.section?.course?.id,
@@ -812,6 +820,157 @@ const getActiveSessions = async (req, res) => {
   }
 };
 
+/**
+ * Regenerate QR code for session (faculty) - 15 second refresh
+ * POST /api/v1/attendance/sessions/:id/regenerate-qr
+ */
+const regenerateQRCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { v4: uuidv4 } = require('uuid');
+
+    // Verify faculty
+    const faculty = await Faculty.findOne({ where: { user_id: req.user.id } });
+
+    const session = await AttendanceSession.findByPk(id);
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Yoklama oturumu bulunamadı',
+      });
+    }
+
+    if (faculty && session.instructor_id !== faculty.id && req.user.role !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu oturumun QR kodunu yenileme yetkiniz yok',
+      });
+    }
+
+    if (session.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Oturum aktif değil',
+      });
+    }
+
+    // Generate new QR code
+    const newQRCode = `ATT-${uuidv4().substring(0, 8).toUpperCase()}-${Date.now()}`;
+    const qrExpiresAt = new Date(Date.now() + 15000); // 15 seconds from now
+
+    await session.update({
+      qr_code: newQRCode,
+      qr_expires_at: qrExpiresAt,
+    });
+
+    logger.info(`QR code regenerated for session: ${id}`);
+
+    res.json({
+      success: true,
+      data: {
+        qr_code: newQRCode,
+        qr_expires_at: qrExpiresAt,
+        expires_in_seconds: 15,
+      },
+    });
+  } catch (error) {
+    logger.error('Regenerate QR code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR kod yenilenirken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get current QR code for session (student)
+ * GET /api/v1/attendance/sessions/:id/qr
+ */
+const getCurrentQRCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get student
+    const student = await Student.findOne({ where: { user_id: req.user.id } });
+    if (!student) {
+      return res.status(403).json({
+        success: false,
+        message: 'Öğrenci kaydı bulunamadı',
+      });
+    }
+
+    const session = await AttendanceSession.findByPk(id, {
+      include: [
+        {
+          model: CourseSection,
+          as: 'section',
+          include: [{ model: Course, as: 'course', attributes: ['code', 'name'] }],
+        },
+      ],
+    });
+
+    if (!session) {
+      return res.status(404).json({
+        success: false,
+        message: 'Yoklama oturumu bulunamadı',
+      });
+    }
+
+    if (session.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Oturum aktif değil',
+      });
+    }
+
+    // Check if student is enrolled in this section
+    const enrollment = await Enrollment.findOne({
+      where: {
+        student_id: student.id,
+        section_id: session.section_id,
+        status: 'enrolled',
+      },
+    });
+
+    if (!enrollment) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bu derse kayıtlı değilsiniz',
+      });
+    }
+
+    // Check if QR code is expired
+    const isQRExpired = session.qr_expires_at && new Date() > new Date(session.qr_expires_at);
+
+    res.json({
+      success: true,
+      data: {
+        session_id: session.id,
+        course: {
+          code: session.section.course.code,
+          name: session.section.course.name,
+        },
+        qr_code: session.qr_code,
+        qr_expires_at: session.qr_expires_at,
+        is_expired: isQRExpired,
+        location: {
+          latitude: session.latitude,
+          longitude: session.longitude,
+          radius: session.geofence_radius,
+        },
+      },
+    });
+  } catch (error) {
+    logger.error('Get current QR code error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'QR kod alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSession,
   getSession,
@@ -822,5 +981,7 @@ module.exports = {
   getActiveSessions,
   getMySessions,
   getAttendanceReport,
+  regenerateQRCode,
+  getCurrentQRCode,
 };
 

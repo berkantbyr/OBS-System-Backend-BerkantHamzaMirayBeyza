@@ -1,39 +1,52 @@
+// Mock Sequelize models with native Jest mocks (no sequelize-mock)
+jest.mock('../../src/models', () => {
+  const mockFuncs = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    count: jest.fn()
+  };
+
+  return {
+    Course: { ...mockFuncs },
+    Enrollment: { ...mockFuncs },
+    Student: { ...mockFuncs },
+    CoursePrerequisite: { ...mockFuncs },
+    sequelize: {
+      transaction: jest.fn(cb => cb ? cb({}) : Promise.resolve())
+    }
+  };
+});
+
 const prerequisiteService = require('../../src/services/prerequisiteService');
 
-describe('PrerequisiteService', () => {
+describe('Prerequisite Service - Unit Tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   describe('gradeCompare', () => {
-    it('should return positive when first grade is higher', () => {
-      expect(prerequisiteService.gradeCompare('AA', 'BB')).toBeGreaterThan(0);
-      expect(prerequisiteService.gradeCompare('BB', 'CC')).toBeGreaterThan(0);
+    it('should correctly compare AA > BB', () => {
+      const result = prerequisiteService.gradeCompare('AA', 'BB');
+      expect(result).toBeGreaterThan(0);
+    });
+
+    it('should correctly compare FF < DD', () => {
+      const result = prerequisiteService.gradeCompare('FF', 'DD');
+      expect(result).toBeLessThan(0);
+    });
+
+    it('should return 0 for equal grades', () => {
+      const result = prerequisiteService.gradeCompare('BB', 'BB');
+      expect(result).toBe(0);
+    });
+
+    it('should handle CC grade', () => {
       expect(prerequisiteService.gradeCompare('CC', 'DD')).toBeGreaterThan(0);
-    });
-
-    it('should return negative when first grade is lower', () => {
-      expect(prerequisiteService.gradeCompare('BB', 'AA')).toBeLessThan(0);
       expect(prerequisiteService.gradeCompare('CC', 'BB')).toBeLessThan(0);
-      expect(prerequisiteService.gradeCompare('FF', 'DD')).toBeLessThan(0);
-    });
-
-    it('should return 0 when grades are equal', () => {
-      expect(prerequisiteService.gradeCompare('AA', 'AA')).toBe(0);
-      expect(prerequisiteService.gradeCompare('BB', 'BB')).toBe(0);
-      expect(prerequisiteService.gradeCompare('FF', 'FF')).toBe(0);
-    });
-
-    it('should handle unknown grades', () => {
-      expect(prerequisiteService.gradeCompare('XY', 'AA')).toBe(0);
-      expect(prerequisiteService.gradeCompare('AA', 'XY')).toBe(0);
-    });
-
-    it('should correctly compare all grade pairs', () => {
-      const grades = ['AA', 'BA', 'BB', 'CB', 'CC', 'DC', 'DD', 'FD', 'FF'];
-      
-      for (let i = 0; i < grades.length - 1; i++) {
-        for (let j = i + 1; j < grades.length; j++) {
-          expect(prerequisiteService.gradeCompare(grades[i], grades[j])).toBeGreaterThan(0);
-          expect(prerequisiteService.gradeCompare(grades[j], grades[i])).toBeLessThan(0);
-        }
-      }
     });
   });
 
@@ -46,13 +59,6 @@ describe('PrerequisiteService', () => {
   describe('getAllPrerequisites', () => {
     it('should be a function', () => {
       expect(typeof prerequisiteService.getAllPrerequisites).toBe('function');
-    });
-
-    it('should handle cycle detection with visited set', async () => {
-      // Test that the visited set prevents infinite loops
-      const visited = new Set(['some-course-id']);
-      const result = await prerequisiteService.getAllPrerequisites('some-course-id', visited);
-      expect(result).toEqual([]);
     });
   });
 

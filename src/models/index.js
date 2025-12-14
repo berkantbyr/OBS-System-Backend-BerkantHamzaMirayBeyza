@@ -40,6 +40,10 @@ db.AttendanceSession = require('./AttendanceSession')(sequelize, Sequelize.DataT
 db.AttendanceRecord = require('./AttendanceRecord')(sequelize, Sequelize.DataTypes);
 db.ExcuseRequest = require('./ExcuseRequest')(sequelize, Sequelize.DataTypes);
 
+// Part 3 - Additional Features Models
+db.AcademicCalendar = require('./AcademicCalendar')(sequelize, Sequelize.DataTypes);
+db.Announcement = require('./Announcement')(sequelize, Sequelize.DataTypes);
+
 // ============================================
 // Define associations
 // ============================================
@@ -287,6 +291,16 @@ db.Faculty.hasMany(db.ExcuseRequest, {
 db.ExcuseRequest.belongsTo(db.Faculty, {
   foreignKey: 'reviewed_by',
   as: 'reviewer',
+});
+
+// User - Announcement (author)
+db.User.hasMany(db.Announcement, {
+  foreignKey: 'author_id',
+  as: 'announcements',
+});
+db.Announcement.belongsTo(db.User, {
+  foreignKey: 'author_id',
+  as: 'author',
 });
 
 db.sequelize = sequelize;

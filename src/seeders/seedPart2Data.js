@@ -318,24 +318,201 @@ async function seed() {
   try {
     console.log('🌱 Part 2 Seed başlatılıyor...\n');
 
-    // Sync database
-    await db.sequelize.sync({ alter: true });
-    console.log('✅ Veritabanı senkronize edildi\n');
+    // Sync database - force: true for fresh database
+    await db.sequelize.sync({ force: true });
+    console.log('✅ Veritabanı tabloları oluşturuldu\n');
+
+    // Create test users
+    console.log('👤 Test kullanıcıları oluşturuluyor...');
+    const hashedPassword = await hashPassword('Test123!');
+
+    // Admin user
+    const [adminUser] = await User.findOrCreate({
+      where: { email: 'admin@university.edu.tr' },
+      defaults: {
+        email: 'admin@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Admin',
+        last_name: 'User',
+        role: 'admin',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+
+    // Create departments first for faculty/student
+    const defaultDepartments = [
+      { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi' },
+      { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi' },
+      { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi' },
+      { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi' },
+    ];
+
+    for (const dept of defaultDepartments) {
+      await Department.findOrCreate({
+        where: { code: dept.code },
+        defaults: dept,
+      });
+    }
+    console.log('✅ Bölümler oluşturuldu');
+
+    const cseDept = await Department.findOne({ where: { code: 'CSE' } });
+    const mathDept = await Department.findOne({ where: { code: 'MATH' } });
+    const physDept = await Department.findOne({ where: { code: 'PHYS' } });
+    const baDept = await Department.findOne({ where: { code: 'BA' } });
+
+    // Faculty user - CSE Department
+    const [facultyUser] = await User.findOrCreate({
+      where: { email: 'faculty@university.edu.tr' },
+      defaults: {
+        email: 'faculty@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Ahmet',
+        last_name: 'Öğretim Üyesi',
+        role: 'faculty',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+    const [cseFaculty] = await Faculty.findOrCreate({
+      where: { user_id: facultyUser.id },
+      defaults: {
+        user_id: facultyUser.id,
+        employee_number: 'FAC2024001',
+        department_id: cseDept?.id || null,
+        title: 'associate_professor',
+        office_location: 'A-301',
+      },
+    });
+
+    // Create faculty for other departments
+    // MATH Faculty
+    const [mathFacultyUser] = await User.findOrCreate({
+      where: { email: 'math.faculty@university.edu.tr' },
+      defaults: {
+        email: 'math.faculty@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Ayşe',
+        last_name: 'Matematik Hoca',
+        role: 'faculty',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+    const [mathFaculty] = await Faculty.findOrCreate({
+      where: { user_id: mathFacultyUser.id },
+      defaults: {
+        user_id: mathFacultyUser.id,
+        employee_number: 'FAC2024002',
+        department_id: mathDept?.id || null,
+        title: 'professor',
+        office_location: 'B-201',
+      },
+    });
+
+    // PHYS Faculty
+    const [physFacultyUser] = await User.findOrCreate({
+      where: { email: 'physics.faculty@university.edu.tr' },
+      defaults: {
+        email: 'physics.faculty@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Mehmet',
+        last_name: 'Fizik Hoca',
+        role: 'faculty',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+    const [physFaculty] = await Faculty.findOrCreate({
+      where: { user_id: physFacultyUser.id },
+      defaults: {
+        user_id: physFacultyUser.id,
+        employee_number: 'FAC2024003',
+        department_id: physDept?.id || null,
+        title: 'associate_professor',
+        office_location: 'C-101',
+      },
+    });
+
+    // BA Faculty
+    const [baFacultyUser] = await User.findOrCreate({
+      where: { email: 'business.faculty@university.edu.tr' },
+      defaults: {
+        email: 'business.faculty@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Fatma',
+        last_name: 'İşletme Hoca',
+        role: 'faculty',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+    const [baFaculty] = await Faculty.findOrCreate({
+      where: { user_id: baFacultyUser.id },
+      defaults: {
+        user_id: baFacultyUser.id,
+        employee_number: 'FAC2024004',
+        department_id: baDept?.id || null,
+        title: 'assistant_professor',
+        office_location: 'D-301',
+      },
+    });
+
+    // Student user
+    const [studentUser] = await User.findOrCreate({
+      where: { email: 'student@university.edu.tr' },
+      defaults: {
+        email: 'student@university.edu.tr',
+        password_hash: hashedPassword,
+        first_name: 'Mehmet',
+        last_name: 'Öğrenci',
+        role: 'student',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+    await Student.findOrCreate({
+      where: { user_id: studentUser.id },
+      defaults: {
+        user_id: studentUser.id,
+        student_number: '2024001001',
+        department_id: cseDept?.id || null,
+        enrollment_date: new Date(),
+        current_semester: 1,
+        status: 'active',
+      },
+    });
+
+    console.log('✅ Test kullanıcıları oluşturuldu:');
+    console.log('   - Admin: admin@university.edu.tr / Test123!');
+    console.log('   - CSE Öğretim Üyesi: faculty@university.edu.tr / Test123!');
+    console.log('   - MATH Öğretim Üyesi: math.faculty@university.edu.tr / Test123!');
+    console.log('   - PHYS Öğretim Üyesi: physics.faculty@university.edu.tr / Test123!');
+    console.log('   - BA Öğretim Üyesi: business.faculty@university.edu.tr / Test123!');
+    console.log('   - Öğrenci: student@university.edu.tr / Test123!\n');
+
+    // Create faculty map for section assignment
+    const facultyByDept = {
+      'CSE': cseFaculty,
+      'MATH': mathFaculty,
+      'PHYS': physFaculty,
+      'BA': baFaculty,
+    };
 
     // Get existing departments
     const departments = await Department.findAll();
     if (departments.length === 0) {
       console.log('⚠️ Bölümler bulunamadı. Önce Part 1 seed çalıştırılmalı.');
-      
+
       // Create basic departments
-      const defaultDepartments = [
+      const defaultDepts = [
         { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi' },
         { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi' },
         { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi' },
         { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi' },
       ];
 
-      for (const dept of defaultDepartments) {
+      for (const dept of defaultDepts) {
         await Department.findOrCreate({
           where: { code: dept.code },
           defaults: dept,
@@ -434,37 +611,37 @@ async function seed() {
       [{ day: 'monday', start_time: '11:00', end_time: '12:30' }, { day: 'wednesday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'monday', start_time: '13:00', end_time: '14:30' }, { day: 'wednesday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'monday', start_time: '14:30', end_time: '16:00' }, { day: 'wednesday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Salı-Cuma saatleri
       [{ day: 'tuesday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
       [{ day: 'tuesday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'tuesday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'tuesday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Pazartesi-Perşembe saatleri
       [{ day: 'monday', start_time: '09:00', end_time: '10:30' }, { day: 'thursday', start_time: '09:00', end_time: '10:30' }],
       [{ day: 'monday', start_time: '11:00', end_time: '12:30' }, { day: 'thursday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'monday', start_time: '13:00', end_time: '14:30' }, { day: 'thursday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'monday', start_time: '14:30', end_time: '16:00' }, { day: 'thursday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Salı-Perşembe saatleri
       [{ day: 'tuesday', start_time: '09:00', end_time: '10:30' }, { day: 'thursday', start_time: '09:00', end_time: '10:30' }],
       [{ day: 'tuesday', start_time: '11:00', end_time: '12:30' }, { day: 'thursday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'tuesday', start_time: '13:00', end_time: '14:30' }, { day: 'thursday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'tuesday', start_time: '14:30', end_time: '16:00' }, { day: 'thursday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Çarşamba-Cuma saatleri
       [{ day: 'wednesday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
       [{ day: 'wednesday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'wednesday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'wednesday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Perşembe-Cuma saatleri
       [{ day: 'thursday', start_time: '09:00', end_time: '10:30' }, { day: 'friday', start_time: '09:00', end_time: '10:30' }],
       [{ day: 'thursday', start_time: '11:00', end_time: '12:30' }, { day: 'friday', start_time: '11:00', end_time: '12:30' }],
       [{ day: 'thursday', start_time: '13:00', end_time: '14:30' }, { day: 'friday', start_time: '13:00', end_time: '14:30' }],
       [{ day: 'thursday', start_time: '14:30', end_time: '16:00' }, { day: 'friday', start_time: '14:30', end_time: '16:00' }],
-      
+
       // Tek gün dersler (daha fazla seçenek için)
       [{ day: 'monday', start_time: '16:00', end_time: '17:30' }],
       [{ day: 'tuesday', start_time: '16:00', end_time: '17:30' }],
@@ -475,12 +652,31 @@ async function seed() {
 
     let sectionCount = 0;
     let scheduleIndex = 0; // Her ders için sırayla farklı schedule atamak için
-    
+
+    // Get course data to determine department
+    const allCourses = await Course.findAll({
+      include: [{ model: Department, as: 'department' }],
+    });
+    const courseDataMap = {};
+    allCourses.forEach((c) => {
+      courseDataMap[c.code] = c;
+    });
+
     for (const courseCode of Object.keys(courseMap)) {
       const courseId = courseMap[courseCode];
-      const randomInstructor = facultyMembers[Math.floor(Math.random() * facultyMembers.length)];
+      const courseData = courseDataMap[courseCode];
+
+      // Assign instructor based on course department
+      let instructor = null;
+      if (courseData?.department?.code && facultyByDept[courseData.department.code]) {
+        instructor = facultyByDept[courseData.department.code];
+      } else {
+        // Fallback to random if no matching department
+        instructor = facultyMembers[Math.floor(Math.random() * facultyMembers.length)];
+      }
+
       const randomClassroom = allClassrooms[Math.floor(Math.random() * allClassrooms.length)];
-      
+
       // Her ders için sırayla farklı schedule atama (çakışma önleme)
       const selectedSchedule = sectionSchedules[scheduleIndex % sectionSchedules.length];
       scheduleIndex++;
@@ -497,7 +693,7 @@ async function seed() {
           section_number: 1,
           semester: currentSemester,
           year: currentYear,
-          instructor_id: randomInstructor?.id || null,
+          instructor_id: instructor?.id || null,
           classroom_id: randomClassroom?.id || null,
           capacity: 40,
           enrolled_count: 0,
