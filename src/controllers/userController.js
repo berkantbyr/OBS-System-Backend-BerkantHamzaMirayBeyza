@@ -301,7 +301,7 @@ const getAllDepartments = async (req, res) => {
     const { Department } = db;
 
     const departments = await Department.findAll({
-      attributes: ['id', 'name', 'code', 'faculty'],
+      attributes: ['id', 'name', 'code', 'faculty', 'is_active'],
       order: [['name', 'ASC']],
     });
 
@@ -314,6 +314,164 @@ const getAllDepartments = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Bölümler alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Create a new department (admin only)
+ * POST /api/v1/users/departments
+ */
+const createDepartment = async (req, res) => {
+  try {
+    const db = require('../models');
+    const { Department } = db;
+    const { code, name, faculty } = req.body;
+
+    // Validate required fields
+    if (!code || !name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bölüm kodu ve adı zorunludur',
+      });
+    }
+
+    // Check if department code already exists
+    const existingDept = await Department.findOne({ where: { code: code.toUpperCase() } });
+    if (existingDept) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bu bölüm kodu zaten mevcut',
+      });
+    }
+
+    // Create department
+    const department = await Department.create({
+      code: code.toUpperCase(),
+      name,
+      faculty: faculty || null,
+      is_active: true,
+    });
+
+    logger.info(`Department created: ${department.code} by admin ${req.user.id}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Bölüm başarıyla oluşturuldu',
+      data: department,
+    });
+  } catch (error) {
+    logger.error('Create department error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bölüm oluşturulurken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update a department (admin only)
+ * PUT /api/v1/users/departments/:id
+ */
+const updateDepartment = async (req, res) => {
+  try {
+    const db = require('../models');
+    const { Department } = db;
+    const { id } = req.params;
+    const { code, name, faculty, is_active } = req.body;
+
+    const department = await Department.findByPk(id);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bölüm bulunamadı',
+      });
+    }
+
+    // Check if new code conflicts with another department
+    if (code && code.toUpperCase() !== department.code) {
+      const existingDept = await Department.findOne({ 
+        where: { code: code.toUpperCase() } 
+      });
+      if (existingDept) {
+        return res.status(400).json({
+          success: false,
+          message: 'Bu bölüm kodu başka bir bölüm tarafından kullanılıyor',
+        });
+      }
+    }
+
+    // Update department
+    await department.update({
+      code: code ? code.toUpperCase() : department.code,
+      name: name || department.name,
+      faculty: faculty !== undefined ? faculty : department.faculty,
+      is_active: is_active !== undefined ? is_active : department.is_active,
+    });
+
+    logger.info(`Department updated: ${department.code} by admin ${req.user.id}`);
+
+    res.json({
+      success: true,
+      message: 'Bölüm başarıyla güncellendi',
+      data: department,
+    });
+  } catch (error) {
+    logger.error('Update department error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bölüm güncellenirken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Delete a department (admin only)
+ * DELETE /api/v1/users/departments/:id
+ */
+const deleteDepartment = async (req, res) => {
+  try {
+    const db = require('../models');
+    const { Department, Student, Faculty, Course } = db;
+    const { id } = req.params;
+
+    const department = await Department.findByPk(id);
+    if (!department) {
+      return res.status(404).json({
+        success: false,
+        message: 'Bölüm bulunamadı',
+      });
+    }
+
+    // Check if department has students, faculty, or courses
+    const studentCount = await Student.count({ where: { department_id: id } });
+    const facultyCount = await Faculty.count({ where: { department_id: id } });
+    const courseCount = await Course.count({ where: { department_id: id } });
+
+    if (studentCount > 0 || facultyCount > 0 || courseCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Bu bölüm silinemez. ${studentCount} öğrenci, ${facultyCount} öğretim üyesi ve ${courseCount} ders bu bölüme bağlı.`,
+      });
+    }
+
+    const deptCode = department.code;
+    await department.destroy();
+
+    logger.info(`Department deleted: ${deptCode} by admin ${req.user.id}`);
+
+    res.json({
+      success: true,
+      message: 'Bölüm başarıyla silindi',
+    });
+  } catch (error) {
+    logger.error('Delete department error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bölüm silinirken hata oluştu',
       error: error.message,
     });
   }
@@ -553,6 +711,9 @@ module.exports = {
   deleteUser,
   getAllFaculty,
   getAllDepartments,
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
   updateStudentDepartment,
   getStudentProfile,
   updateFacultyDepartment,

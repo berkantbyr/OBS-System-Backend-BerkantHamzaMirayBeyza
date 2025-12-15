@@ -54,6 +54,27 @@ router.get('/faculty', authorize('admin'), userController.getAllFaculty);
 router.get('/departments', userController.getAllDepartments);
 
 /**
+ * @route   POST /api/v1/users/departments
+ * @desc    Create a new department
+ * @access  Admin only
+ */
+router.post('/departments', authorize('admin'), userController.createDepartment);
+
+/**
+ * @route   PUT /api/v1/users/departments/:id
+ * @desc    Update a department
+ * @access  Admin only
+ */
+router.put('/departments/:id', authorize('admin'), userController.updateDepartment);
+
+/**
+ * @route   DELETE /api/v1/users/departments/:id
+ * @desc    Delete a department
+ * @access  Admin only
+ */
+router.delete('/departments/:id', authorize('admin'), userController.deleteDepartment);
+
+/**
  * @route   GET /api/v1/users/students/certificate
  * @desc    Generate student certificate PDF
  * @access  Student only
