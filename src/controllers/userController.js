@@ -437,51 +437,92 @@ const updateStudentDepartment = async (req, res) => {
  */
 const downloadCertificate = async (req, res) => {
   try {
+    logger.info(`📄 Certificate download request - User: ${req.user.id}`);
+
     const student = await Student.findOne({
       where: { user_id: req.user.id },
       include: [
-        { model: User, as: 'user' },
-        { model: Department, as: 'department' },
+        { model: User, as: 'user', required: false },
+        { model: Department, as: 'department', required: false },
       ],
     });
 
     if (!student) {
+      logger.warn(`❌ Student not found for user: ${req.user.id}`);
       return res.status(404).json({
         success: false,
         message: 'Öğrenci kaydı bulunamadı',
       });
     }
 
+    // Get user info if not included
+    let userInfo = student.user;
+    if (!userInfo) {
+      userInfo = await User.findByPk(req.user.id);
+    }
+
+    if (!userInfo) {
+      logger.warn(`❌ User info not found for student: ${student.id}`);
+      return res.status(404).json({
+        success: false,
+        message: 'Kullanıcı bilgileri bulunamadı',
+      });
+    }
+
+    logger.info(`✅ Student found: ${student.student_number}`);
+
     // Create PDF
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
+    // Handle PDF errors
+    doc.on('error', (err) => {
+      logger.error('PDF generation error:', err);
+    });
+
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=ogrenci_belgesi_${student.student_number}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=ogrenci_belgesi_${student.student_number || 'unknown'}.pdf`);
 
     doc.pipe(res);
 
-    // Load embedded Roboto font (supports Turkish characters)
-    const fontDir = path.join(__dirname, '../assets/fonts');
-    const robotoRegular = path.join(fontDir, 'Roboto-Regular.ttf');
-    const robotoBold = path.join(fontDir, 'Roboto-Bold.ttf');
+    // Use Helvetica (built-in, supports basic characters)
+    // Note: For full Turkish support, custom fonts should be deployed with the app
+    const fontRegular = 'Helvetica';
+    const fontBold = 'Helvetica-Bold';
 
-    // Register fonts
-    let fontRegular = 'Helvetica';
-    let fontBold = 'Helvetica-Bold';
+    // Try to load custom fonts if available
+    try {
+      const fontDir = path.join(__dirname, '../assets/fonts');
+      const robotoRegular = path.join(fontDir, 'Roboto-Regular.ttf');
+      const robotoBold = path.join(fontDir, 'Roboto-Bold.ttf');
 
-    if (fs.existsSync(robotoRegular)) {
-      doc.registerFont('Roboto', robotoRegular);
-      fontRegular = 'Roboto';
+      if (fs.existsSync(robotoRegular) && fs.existsSync(robotoBold)) {
+        doc.registerFont('Roboto', robotoRegular);
+        doc.registerFont('Roboto-Bold', robotoBold);
+        logger.info('✅ Custom fonts loaded successfully');
+      } else {
+        logger.info('ℹ️ Using built-in Helvetica font (custom fonts not found)');
+      }
+    } catch (fontError) {
+      logger.warn('⚠️ Font loading failed, using Helvetica:', fontError.message);
     }
-    if (fs.existsSync(robotoBold)) {
-      doc.registerFont('Roboto-Bold', robotoBold);
-      fontBold = 'Roboto-Bold';
-    }
+
+    // Safe text helper - converts Turkish characters to ASCII equivalents for Helvetica
+    const safeText = (text) => {
+      if (!text) return '-';
+      // If using Helvetica, convert Turkish chars
+      return String(text)
+        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
+        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
+        .replace(/ş/g, 's').replace(/Ş/g, 'S')
+        .replace(/ı/g, 'i').replace(/İ/g, 'I')
+        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
+        .replace(/ç/g, 'c').replace(/Ç/g, 'C');
+    };
 
     // Header
-    doc.font(fontBold).fontSize(20).text('ÜNİVERSİTE OBS SİSTEMİ', { align: 'center' });
+    doc.font(fontBold).fontSize(20).text(safeText('UNIVERSITE OBS SISTEMI'), { align: 'center' });
     doc.moveDown(0.5);
-    doc.font(fontBold).fontSize(16).text('ÖĞRENCİ BELGESİ', { align: 'center', underline: true });
+    doc.font(fontBold).fontSize(16).text(safeText('OGRENCI BELGESI'), { align: 'center', underline: true });
     doc.moveDown(0.5);
     doc.font(fontRegular).fontSize(10).text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, { align: 'right' });
     doc.moveDown(2);
@@ -492,53 +533,69 @@ const downloadCertificate = async (req, res) => {
     let y = doc.y;
 
     const addRow = (label, value) => {
-      doc.font(fontBold).fontSize(11).text(label, labelX, y);
-      doc.font(fontRegular).fontSize(11).text(`: ${value}`, valueX, y);
+      doc.font(fontBold).fontSize(11).text(safeText(label), labelX, y);
+      doc.font(fontRegular).fontSize(11).text(`: ${safeText(value)}`, valueX, y);
       y += 20;
     };
 
-    addRow('Öğrenci Numarası', student.student_number);
-    addRow('Adı Soyadı', `${student.user.first_name} ${student.user.last_name}`);
-    addRow('T.C. Kimlik No', `***********${student.user.citizenship_id?.slice(-2) || '**'}`);
-    addRow('Sınıfı', `${student.current_semester || 1}. Sınıf`);
-    addRow('Öğrenim Türü', 'Örgün Öğretim');
+    const firstName = userInfo.first_name || 'Bilinmiyor';
+    const lastName = userInfo.last_name || 'Bilinmiyor';
+    const fullName = `${firstName} ${lastName}`;
+    const citizenshipId = userInfo.citizenship_id;
+    const departmentName = student.department?.name || 'Belirtilmemis';
+
+    addRow('Ogrenci Numarasi', student.student_number || '-');
+    addRow('Adi Soyadi', fullName);
+    addRow('T.C. Kimlik No', citizenshipId ? `***********${citizenshipId.slice(-2)}` : '**');
+    addRow('Sinifi', `${student.current_semester || 1}. Sinif`);
+    addRow('Ogrenim Turu', 'Orgun Ogretim');
     addRow('Durumu', student.status === 'active' ? 'Aktif' : 'Pasif');
-    addRow('Kayıt Tarihi', student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('tr-TR') : '-');
-    addRow('Genel Not Ortalaması', student.cgpa?.toFixed(2) || '0.00');
+    addRow('Kayit Tarihi', student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('tr-TR') : '-');
+    addRow('Genel Not Ortalamasi', student.cgpa?.toFixed(2) || '0.00');
 
     doc.moveDown(2);
 
     // Description text
-    doc.font(fontRegular).fontSize(10).text(
-      `Yukarıda kimlik bilgileri yer alan ${student.user.first_name} ${student.user.last_name}, ` +
-      `üniversitemizin ${student.department?.name || 'belirtilmemiş'} bölümü öğrencisidir. ` +
-      `Bu belge, ilgili makama sunulmak üzere, öğrencinin isteği üzerine düzenlenmiştir.`,
-      labelX, doc.y, { width: 450, align: 'justify' }
-    );
+    const descriptionText = `Yukarida kimlik bilgileri yer alan ${safeText(fullName)}, ` +
+      `universitemizin ${safeText(departmentName)} bolumu ogrencisidir. ` +
+      `Bu belge, ilgili makama sunulmak uzere, ogrencinin istegi uzerine duzenlenmistir.`;
+    
+    doc.font(fontRegular).fontSize(10).text(descriptionText, labelX, doc.y, { width: 450, align: 'justify' });
 
     // Signature area
     doc.moveDown(4);
-    doc.font(fontBold).fontSize(10).text('Öğrenci İşleri Daire Başkanlığı', { align: 'right' });
-    doc.font(fontRegular).fontSize(9).text('(Mühür / İmza)', { align: 'right' });
+    doc.font(fontBold).fontSize(10).text(safeText('Ogrenci Isleri Daire Baskanligi'), { align: 'right' });
+    doc.font(fontRegular).fontSize(9).text(safeText('(Muhur / Imza)'), { align: 'right' });
 
     // QR Code placeholder
-    doc.rect(60, doc.y - 60, 60, 60).stroke();
-    doc.font(fontRegular).fontSize(7).text('Doğrulama Kodu', 65, doc.y - 55);
+    const qrY = doc.y;
+    doc.rect(60, qrY, 60, 60).stroke();
+    doc.font(fontRegular).fontSize(7).text(safeText('Dogrulama Kodu'), 65, qrY + 25);
 
     // Footer
     const bottom = doc.page.height - 60;
     doc.font(fontRegular).fontSize(8).text(
-      'Bu belge elektronik ortamda üretilmiştir.',
+      safeText('Bu belge elektronik ortamda uretilmistir.'),
       50, bottom, { align: 'center', width: 500 }
     );
 
     doc.end();
+    logger.info(`✅ Certificate PDF generated for student: ${student.student_number}`);
   } catch (error) {
-    logger.error('Download certificate error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Belge oluşturulurken hata oluştu',
+    logger.error('❌ Download certificate error:', {
+      error: error.message,
+      stack: error.stack,
+      userId: req.user?.id,
     });
+    
+    // Only send error response if headers haven't been sent
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Belge oluşturulurken hata oluştu',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
   }
 };
 

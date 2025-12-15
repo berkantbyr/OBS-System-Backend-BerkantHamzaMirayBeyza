@@ -340,7 +340,8 @@ class AttendanceService {
         {
           model: Student,
           as: 'student',
-          include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'] }],
+          required: false,
+          include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }],
         },
       ],
     });
@@ -348,6 +349,11 @@ class AttendanceService {
     const report = [];
 
     for (const enrollment of enrollments) {
+      // Skip if student data is missing
+      if (!enrollment.student) {
+        continue;
+      }
+
       const stats = await this.getStudentAttendanceStats(enrollment.student_id, sectionId);
 
       // Check if student has flagged records
@@ -361,15 +367,16 @@ class AttendanceService {
             model: AttendanceSession,
             as: 'session',
             where: { section_id: sectionId },
+            required: true,
           },
         ],
       });
 
       report.push({
         studentId: enrollment.student_id,
-        studentNumber: enrollment.student.student_number,
-        firstName: enrollment.student.user.first_name,
-        lastName: enrollment.student.user.last_name,
+        studentNumber: enrollment.student.student_number || '-',
+        firstName: enrollment.student.user?.first_name || 'Bilinmiyor',
+        lastName: enrollment.student.user?.last_name || '',
         ...stats,
         flaggedCount: flaggedRecords.length,
         isFlagged: flaggedRecords.length > 0,
@@ -384,5 +391,6 @@ class AttendanceService {
 }
 
 module.exports = new AttendanceService();
+
 
 

@@ -185,7 +185,8 @@ class GradeCalculationService {
         {
           model: CourseSection,
           as: 'section',
-          include: [{ model: Course, as: 'course' }],
+          required: false,
+          include: [{ model: Course, as: 'course', required: false }],
         },
       ],
     });
@@ -195,12 +196,17 @@ class GradeCalculationService {
     const semesterMap = new Map();
 
     for (const enrollment of enrollments) {
-      const credits = enrollment.section.course.credits;
+      // Skip if section or course data is missing
+      if (!enrollment.section || !enrollment.section.course) {
+        continue;
+      }
+
+      const credits = enrollment.section.course.credits || 0;
       const semesterKey = `${enrollment.section.year}-${enrollment.section.semester}`;
 
       // For repeat courses, only count the best grade
       if (!enrollment.is_repeat || enrollment.grade_point > 0) {
-        totalPoints += enrollment.grade_point * credits;
+        totalPoints += (enrollment.grade_point || 0) * credits;
         totalCredits += credits;
       }
 
@@ -217,13 +223,13 @@ class GradeCalculationService {
 
       const semData = semesterMap.get(semesterKey);
       semData.courses.push({
-        code: enrollment.section.course.code,
-        name: enrollment.section.course.name,
+        code: enrollment.section.course.code || 'N/A',
+        name: enrollment.section.course.name || 'Bilinmeyen Ders',
         credits,
-        letterGrade: enrollment.letter_grade,
-        gradePoint: parseFloat(enrollment.grade_point),
+        letterGrade: enrollment.letter_grade || '-',
+        gradePoint: parseFloat(enrollment.grade_point) || 0,
       });
-      semData.totalPoints += enrollment.grade_point * credits;
+      semData.totalPoints += (enrollment.grade_point || 0) * credits;
       semData.totalCredits += credits;
     }
 
@@ -237,7 +243,7 @@ class GradeCalculationService {
     semesters.sort((a, b) => {
       if (a.year !== b.year) return a.year - b.year;
       const semOrder = { spring: 1, summer: 2, fall: 3 };
-      return semOrder[a.semester] - semOrder[b.semester];
+      return (semOrder[a.semester] || 0) - (semOrder[b.semester] || 0);
     });
 
     const cgpa = totalCredits > 0 ? parseFloat((totalPoints / totalCredits).toFixed(2)) : 0;
@@ -271,8 +277,8 @@ class GradeCalculationService {
   async getTranscript(studentId) {
     const student = await Student.findByPk(studentId, {
       include: [
-        { model: User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
-        { model: Department, as: 'department', attributes: ['name', 'code'] },
+        { model: User, as: 'user', attributes: ['first_name', 'last_name', 'email'], required: false },
+        { model: Department, as: 'department', attributes: ['name', 'code'], required: false },
       ],
     });
 
@@ -284,26 +290,28 @@ class GradeCalculationService {
 
     return {
       student: {
-        studentNumber: student.student_number,
-        firstName: student.user.first_name,
-        lastName: student.user.last_name,
-        email: student.user.email,
-        department: student.department?.name,
-        departmentCode: student.department?.code,
-        enrollmentDate: student.enrollment_date,
-        status: student.status,
+        studentNumber: student.student_number || '-',
+        firstName: student.user?.first_name || 'Bilinmiyor',
+        lastName: student.user?.last_name || '',
+        email: student.user?.email || '-',
+        department: student.department?.name || null,
+        departmentCode: student.department?.code || null,
+        enrollmentDate: student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('tr-TR') : null,
+        citizenshipId: student.user?.citizenship_id || null,
+        status: student.status || 'active',
       },
       academic: {
-        cgpa,
-        totalCredits,
-        currentSemester: student.current_semester,
+        cgpa: cgpa || 0,
+        totalCredits: totalCredits || 0,
+        currentSemester: student.current_semester || 1,
       },
-      semesters,
+      semesters: semesters || [],
       generatedAt: new Date().toISOString(),
     };
   }
 }
 
 module.exports = new GradeCalculationService();
+
 
 
