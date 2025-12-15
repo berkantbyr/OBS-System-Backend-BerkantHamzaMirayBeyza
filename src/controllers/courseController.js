@@ -131,26 +131,10 @@ const getCourseById = async (req, res) => {
       }
     }
  
-    // Get active sections for current and next semester
-    const currentYear = new Date().getFullYear();
-    const currentMonth = new Date().getMonth();
-    let currentSemester;
-    if (currentMonth >= 1 && currentMonth <= 5) {
-      currentSemester = 'spring';
-    } else if (currentMonth >= 6 && currentMonth <= 8) {
-      currentSemester = 'summer';
-    } else {
-      currentSemester = 'fall';
-    }
-
     const sections = await CourseSection.findAll({
       where: {
         course_id: id,
         is_active: true,
-        [Op.or]: [
-          { year: currentYear, semester: currentSemester },
-          { year: currentYear + 1 },
-        ],
       },
       include: [
         {
