@@ -153,6 +153,10 @@ const getTranscript = async (req, res) => {
  * Get transcript as PDF
  * GET /api/v1/grades/transcript/pdf
  */
+/**
+ * Get transcript as PDF
+ * GET /api/v1/grades/transcript/pdf
+ */
 const getTranscriptPDF = async (req, res) => {
   try {
     const PDFDocument = require('pdfkit');
@@ -181,40 +185,44 @@ const getTranscriptPDF = async (req, res) => {
       margin: 40
     });
 
-    // Handle PDF errors
-    doc.on('error', (err) => {
-      logger.error('PDF generation error:', err);
-    });
-
     // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=transkript_${student.student_number || 'unknown'}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=transkript_${student.student_number}.pdf`);
 
     // Pipe the document to response
     doc.pipe(res);
 
-    // Use Helvetica (built-in)
-    const fontRegular = 'Helvetica';
-    const fontBold = 'Helvetica-Bold';
+    // Load embedded Roboto font (supports Turkish characters)
+    const fontDir = path.join(__dirname, '../assets/fonts');
+    const robotoRegular = path.join(fontDir, 'Roboto-Regular.ttf');
+    const robotoBold = path.join(fontDir, 'Roboto-Bold.ttf');
 
-    // Safe text helper - converts Turkish characters to ASCII equivalents for Helvetica
-    const safeText = (text) => {
-      if (!text) return '-';
-      return String(text)
-        .replace(/ğ/g, 'g').replace(/Ğ/g, 'G')
-        .replace(/ü/g, 'u').replace(/Ü/g, 'U')
-        .replace(/ş/g, 's').replace(/Ş/g, 'S')
-        .replace(/ı/g, 'i').replace(/İ/g, 'I')
-        .replace(/ö/g, 'o').replace(/Ö/g, 'O')
-        .replace(/ç/g, 'c').replace(/Ç/g, 'C');
-    };
+    // Register fonts
+    if (fs.existsSync(robotoRegular)) {
+      doc.registerFont('Roboto', robotoRegular);
+      logger.info(`✅ Roboto Regular font loaded from: ${robotoRegular}`);
+    } else {
+      logger.warn(`⚠️ Roboto Regular font not found at: ${robotoRegular}, using Helvetica`);
+    }
+
+    if (fs.existsSync(robotoBold)) {
+      doc.registerFont('Roboto-Bold', robotoBold);
+      logger.info(`✅ Roboto Bold font loaded from: ${robotoBold}`);
+    }
+
+    // Use Roboto if available, otherwise Helvetica
+    const fontRegular = fs.existsSync(robotoRegular) ? 'Roboto' : 'Helvetica';
+    const fontBold = fs.existsSync(robotoBold) ? 'Roboto-Bold' : 'Helvetica-Bold';
+
+    // Helper for Turkish chars
+    const tr = (text) => text || '';
 
     doc.font(fontRegular);
 
     // --- HEADER ---
-    doc.font(fontBold).fontSize(20).text(safeText('UNIVERSITE OBS SISTEMI'), { align: 'center' });
+    doc.font(fontBold).fontSize(20).text('ÜNİVERSİTE OBS SİSTEMİ', { align: 'center' });
     doc.moveDown(0.5);
-    doc.font(fontBold).fontSize(14).text('TRANSKRIPT', { align: 'center', underline: true });
+    doc.font(fontBold).fontSize(14).text('ÖĞRENCİ BELGESİ', { align: 'center', underline: true });
     doc.moveDown(2);
     doc.font(fontRegular);
 
@@ -226,22 +234,22 @@ const getTranscriptPDF = async (req, res) => {
     const valueX2 = 400;
     let y = doc.y;
 
-    doc.font(fontBold).text(safeText('Ogrenci No'), infoX, y);
-    doc.font(fontRegular).text(': ' + (transcript.student?.studentNumber || '-'), valueX, y);
+    doc.font(fontBold).text('Öğrenci No', infoX, y);
+    doc.font(fontRegular).text(': ' + transcript.student.studentNumber, valueX, y);
     doc.font(fontBold).text('T.C. Kimlik No', infoX2, y);
-    doc.font(fontRegular).text(': ***********' + (transcript.student?.citizenshipId?.slice(-2) || 'XX'), valueX2, y);
+    doc.font(fontRegular).text(': ***********' + (transcript.student.citizenshipId?.slice(-2) || 'XX'), valueX2, y);
     y += 15;
 
-    doc.font(fontBold).text(safeText('Adi Soyadi'), infoX, y);
-    doc.font(fontRegular).text(': ' + safeText(`${transcript.student?.firstName || ''} ${transcript.student?.lastName || ''}`), valueX, y);
-    doc.font(fontBold).text(safeText('Kayit Tarihi'), infoX2, y);
-    doc.font(fontRegular).text(': ' + (transcript.student?.enrollmentDate || '-'), valueX2, y);
+    doc.font(fontBold).text('Adı Soyadı', infoX, y);
+    doc.font(fontRegular).text(': ' + tr(`${transcript.student.firstName} ${transcript.student.lastName}`), valueX, y);
+    doc.font(fontBold).text('Kayıt Tarihi', infoX2, y);
+    doc.font(fontRegular).text(': ' + (transcript.student.enrollmentDate || '-'), valueX2, y);
     y += 15;
 
-    doc.font(fontBold).text(safeText('Bolum'), infoX, y);
-    doc.font(fontRegular).text(': ' + safeText(transcript.student?.department || '-'), valueX, y);
-    doc.font(fontBold).text(safeText('Ogrenim Turu'), infoX2, y);
-    doc.font(fontRegular).text(safeText(': Orgun Ogretim'), valueX2, y);
+    doc.font(fontBold).text('Bölüm', infoX, y);
+    doc.font(fontRegular).text(': ' + tr(transcript.student.department || '-'), valueX, y);
+    doc.font(fontBold).text('Öğrenim Türü', infoX2, y);
+    doc.font(fontRegular).text(': Örgün Öğretim', valueX2, y);
     y += 15;
 
     doc.font(fontBold).text('Durumu', infoX, y);
@@ -252,88 +260,81 @@ const getTranscriptPDF = async (req, res) => {
 
     // --- GRADES TABLE ---
     const semesterNames = {
-      fall: 'Guz',
+      fall: 'Güz',
       spring: 'Bahar',
       summer: 'Yaz',
     };
 
     const colX = { code: 50, name: 130, cred: 380, grade: 430, point: 480 };
 
-    if (transcript.semesters && transcript.semesters.length > 0) {
-      transcript.semesters.forEach(sem => {
-        // Check page break
-        if (doc.y > 700) doc.addPage();
+    transcript.semesters.forEach(sem => {
+      // Check page break
+      if (doc.y > 700) doc.addPage();
 
-        // Semester Header
-        doc.rect(40, doc.y, 515, 20).fill('#f0f0f0');
-        doc.fillColor('black');
-        doc.fontSize(11).font(fontBold).text(
-          `${sem.year} - ${safeText(semesterNames[sem.semester] || sem.semester)} Donemi`,
-          50, doc.y - 15
-        );
-        doc.moveDown(0.5);
+      // Semester Header
+      doc.rect(40, doc.y, 515, 20).fill('#f0f0f0');
+      doc.fillColor('black');
+      doc.fontSize(11).font(fontBold).text(
+        `${sem.year} - ${tr(semesterNames[sem.semester] || sem.semester)} Dönemi`,
+        50, doc.y - 15
+      );
+      doc.moveDown(0.5);
 
-        // Table Headers
-        doc.fontSize(9).font(fontBold);
-        const headersY = doc.y;
-        doc.text('Ders Kodu', colX.code, headersY);
-        doc.text(safeText('Ders Adi'), colX.name, headersY);
-        doc.text('Kredi', colX.cred, headersY);
-        doc.text('Not', colX.grade, headersY);
-        doc.text('Puan', colX.point, headersY);
+      // Table Headers
+      doc.fontSize(9).font(fontBold);
+      const headersY = doc.y;
+      doc.text('Ders Kodu', colX.code, headersY);
+      doc.text('Ders Adı', colX.name, headersY);
+      doc.text('Kredi', colX.cred, headersY);
+      doc.text('Not', colX.grade, headersY);
+      doc.text('Puan', colX.point, headersY);
 
-        doc.moveTo(40, doc.y + 2).lineTo(555, doc.y + 2).stroke();
-        doc.moveDown(0.5);
+      doc.moveTo(40, doc.y + 2).lineTo(555, doc.y + 2).stroke();
+      doc.moveDown(0.5);
 
-        // Courses
-        doc.font(fontRegular);
-        if (sem.courses && sem.courses.length > 0) {
-          sem.courses.forEach(course => {
-            if (doc.y > 750) {
-              doc.addPage();
-              doc.fontSize(9).font(fontRegular);
-            }
-
-            const rowY = doc.y;
-            doc.text(course.code || '-', colX.code, rowY);
-            doc.text(safeText(course.name || '-').substring(0, 45), colX.name, rowY, { width: 240 });
-            doc.text(String(course.credits || 0), colX.cred, rowY);
-            doc.text(course.letterGrade || '-', colX.grade, rowY);
-            doc.text(course.gradePoint?.toFixed(2) || '-', colX.point, rowY);
-
-            doc.moveDown(0.8);
-          });
+      // Courses
+      doc.font(fontRegular);
+      sem.courses.forEach(course => {
+        if (doc.y > 750) {
+          doc.addPage();
+          doc.fontSize(9).font(fontRegular); // Reset font after new page
         }
 
-        // Semester Summary
-        doc.moveDown(0.5);
-        doc.fontSize(10).font(fontBold);
-        doc.text(
-          `${safeText('Donem Ortalamasi')} (GPA): ${(sem.gpa || 0).toFixed(2)}       ${safeText('Donem Kredisi')}: ${sem.totalCredits || 0}`,
-          { align: 'right' }
-        );
-        doc.moveDown(1.5);
+        const rowY = doc.y;
+        doc.text(course.code, colX.code, rowY);
+        doc.text(tr(course.name).substring(0, 45), colX.name, rowY, { width: 240 });
+        doc.text(String(course.credits), colX.cred, rowY);
+        doc.text(course.letterGrade || '-', colX.grade, rowY);
+        doc.text(course.gradePoint?.toFixed(2) || '-', colX.point, rowY);
+
+        doc.moveDown(0.8);
       });
-    } else {
-      doc.fontSize(12).text(safeText('Henuz kayitli ders bulunmamaktadir.'), { align: 'center' });
-      doc.moveDown(2);
-    }
+
+      // Semester Summary
+      doc.moveDown(0.5);
+      doc.fontSize(10).font(fontBold);
+      doc.text(
+        `Dönem Ortalaması (GPA): ${sem.gpa.toFixed(2)}       Dönem Kredisi: ${sem.totalCredits}`,
+        { align: 'right' }
+      );
+      doc.moveDown(1.5);
+    });
 
     // --- OVERALL SUMMARY ---
     doc.moveDown(1);
     const summaryStartY = doc.y;
     doc.rect(40, summaryStartY, 515, 60).stroke();
 
-    doc.font(fontBold).fontSize(12).text(safeText('GENEL OZET'), 50, summaryStartY + 10, { align: 'center', width: 500 });
+    doc.font(fontBold).fontSize(12).text('GENEL ÖZET', 50, summaryStartY + 10, { align: 'center', width: 500 });
 
     doc.font(fontRegular).fontSize(10);
-    doc.text(`${safeText('Genel Not Ortalamasi')} (CGPA): ${(transcript.academic?.cgpa || 0).toFixed(2)}`, 60, summaryStartY + 35);
-    doc.text(`Toplam Kredi: ${transcript.academic?.totalCredits || 0}`, 300, summaryStartY + 35);
+    doc.text(`Genel Not Ortalaması (CGPA): ${transcript.academic.cgpa.toFixed(2)}`, 60, summaryStartY + 35);
+    doc.text(`Toplam Kredi: ${transcript.academic.totalCredits}`, 300, summaryStartY + 35);
 
     // --- FOOTER ---
     const bottom = doc.page.height - 50;
     doc.font(fontRegular).fontSize(8).text(
-      safeText(`Bu belge ${new Date(transcript.generatedAt || new Date()).toLocaleString('tr-TR')} tarihinde olusturulmustur. Elektronik ortamda uretilmistir.`),
+      `Bu belge ${new Date(transcript.generatedAt).toLocaleString('tr-TR')} tarihinde oluşturulmuştur. Elektronik ortamda üretilmiştir, ıslak imza gerektirmez.`,
       50, bottom, { align: 'center', width: 500 }
     );
 
@@ -350,7 +351,7 @@ const getTranscriptPDF = async (req, res) => {
       res.status(500).json({
         success: false,
         message: 'Transkript PDF oluşturulurken hata oluştu',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        error: error.message,
       });
     }
   }

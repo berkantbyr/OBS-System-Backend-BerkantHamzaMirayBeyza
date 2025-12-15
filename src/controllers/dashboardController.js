@@ -13,15 +13,11 @@ const getDashboardStats = async (req, res) => {
         const { user } = req;
         let stats = {};
 
-        logger.info(`📊 Getting dashboard stats for user: ${user.id}, role: ${user.role}`);
-
         if (user.role === 'student') {
             // Get student's enrolled courses count
             const student = await Student.findOne({ where: { user_id: user.id } });
 
             if (student) {
-                logger.info(`✅ Student found: ${student.id}`);
-
                 // Active enrollments count
                 const activeEnrollments = await Enrollment.count({
                     where: {
@@ -37,8 +33,7 @@ const getDashboardStats = async (req, res) => {
                     include: [{
                         model: CourseSection,
                         as: 'section',
-                        attributes: ['schedule_json'],
-                        required: false
+                        attributes: ['schedule_json']
                     }]
                 });
 
@@ -64,52 +59,34 @@ const getDashboardStats = async (req, res) => {
                 const gpa = student.cgpa || 0;
 
                 // Get unread announcements count
-                let announcementsCount = 0;
-                try {
-                    announcementsCount = await Announcement.count({
-                        where: {
-                            is_active: true,
-                            [Op.or]: [
-                                { target_audience: 'all' },
-                                { target_audience: 'students' }
-                            ]
-                        }
-                    });
-                } catch (announcementError) {
-                    logger.warn('Could not fetch announcements count:', announcementError.message);
-                }
+                const announcementsCount = await Announcement.count({
+                    where: {
+                        is_active: true,
+                        [Op.or]: [
+                            { target_audience: 'all' },
+                            { target_audience: 'students' }
+                        ]
+                    }
+                });
 
                 stats = {
-                    activeCourses: activeEnrollments || 0,
-                    todayCourses: todayCoursesCount || 0,
-                    gpa: parseFloat(gpa || 0).toFixed(2),
-                    notifications: announcementsCount || 0
-                };
-
-                logger.info(`✅ Student stats calculated:`, stats);
-            } else {
-                logger.warn(`⚠️ Student record not found for user: ${user.id}`);
-                stats = {
-                    activeCourses: 0,
-                    todayCourses: 0,
-                    gpa: '0.00',
-                    notifications: 0
+                    activeCourses: activeEnrollments,
+                    todayCourses: todayCoursesCount,
+                    gpa: parseFloat(gpa).toFixed(2),
+                    notifications: announcementsCount
                 };
             }
         } else if (user.role === 'faculty') {
             const faculty = await Faculty.findOne({ where: { user_id: user.id } });
 
             if (faculty) {
-                logger.info(`✅ Faculty found: ${faculty.id}`);
-
                 // Get sections taught by this faculty
                 const sections = await CourseSection.findAll({
                     where: { instructor_id: faculty.id, is_active: true },
                     include: [{
                         model: Course,
                         as: 'course',
-                        attributes: ['code', 'name'],
-                        required: false
+                        attributes: ['code', 'name']
                     }]
                 });
 
@@ -143,33 +120,18 @@ const getDashboardStats = async (req, res) => {
                 });
 
                 // Pending attendance sessions
-                let pendingSessions = 0;
-                try {
-                    pendingSessions = await AttendanceSession.count({
-                        where: {
-                            instructor_id: faculty.id,
-                            status: 'active'
-                        }
-                    });
-                } catch (sessionError) {
-                    logger.warn('Could not fetch attendance sessions count:', sessionError.message);
-                }
+                const pendingSessions = await AttendanceSession.count({
+                    where: {
+                        instructor_id: faculty.id,
+                        status: 'active'
+                    }
+                });
 
                 stats = {
-                    teachingCourses: sections.length || 0,
-                    totalStudents: totalStudents || 0,
-                    todayCourses: todayCoursesCount || 0,
-                    activeSessions: pendingSessions || 0
-                };
-
-                logger.info(`✅ Faculty stats calculated:`, stats);
-            } else {
-                logger.warn(`⚠️ Faculty record not found for user: ${user.id}`);
-                stats = {
-                    teachingCourses: 0,
-                    totalStudents: 0,
-                    todayCourses: 0,
-                    activeSessions: 0
+                    teachingCourses: sections.length,
+                    totalStudents: totalStudents,
+                    todayCourses: todayCoursesCount,
+                    activeSessions: pendingSessions
                 };
             }
         } else if (user.role === 'admin') {
@@ -190,13 +152,11 @@ const getDashboardStats = async (req, res) => {
             const departmentsCount = await Department.count();
 
             stats = {
-                totalUsers: totalUsers || 0,
-                activeStudents: activeStudents || 0,
-                facultyCount: facultyCount || 0,
-                departmentsCount: departmentsCount || 0
+                totalUsers: totalUsers,
+                activeStudents: activeStudents,
+                facultyCount: facultyCount,
+                departmentsCount: departmentsCount
             };
-
-            logger.info(`✅ Admin stats calculated:`, stats);
         }
 
         res.status(200).json({
@@ -204,15 +164,10 @@ const getDashboardStats = async (req, res) => {
             data: stats
         });
     } catch (error) {
-        logger.error('❌ Get dashboard stats error:', {
-            error: error.message,
-            stack: error.stack,
-            userId: req.user?.id
-        });
+        logger.error('Get dashboard stats error:', error);
         res.status(500).json({
             success: false,
             message: 'İstatistikler yüklenirken hata oluştu',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined,
             code: 'SERVER_ERROR'
         });
     }
@@ -227,146 +182,118 @@ const getRecentActivities = async (req, res) => {
         const { user } = req;
         const activities = [];
 
-        logger.info(`📋 Getting recent activities for user: ${user.id}, role: ${user.role}`);
-
         // Get recent announcements (for all users)
-        try {
-            const whereClause = {
-                is_active: true
-            };
+        const announcements = await Announcement.findAll({
+            where: {
+                is_active: true,
+                ...(user.role === 'student' && {
+                    [Op.or]: [
+                        { target_audience: 'all' },
+                        { target_audience: 'students' }
+                    ]
+                }),
+                ...(user.role === 'faculty' && {
+                    [Op.or]: [
+                        { target_audience: 'all' },
+                        { target_audience: 'faculty' }
+                    ]
+                })
+            },
+            order: [['created_at', 'DESC']],
+            limit: 5,
+            attributes: ['id', 'title', 'created_at']
+        });
 
-            if (user.role === 'student') {
-                whereClause[Op.or] = [
-                    { target_audience: 'all' },
-                    { target_audience: 'students' }
-                ];
-            } else if (user.role === 'faculty') {
-                whereClause[Op.or] = [
-                    { target_audience: 'all' },
-                    { target_audience: 'faculty' }
-                ];
-            }
-
-            const announcements = await Announcement.findAll({
-                where: whereClause,
-                order: [['created_at', 'DESC']],
-                limit: 5,
-                attributes: ['id', 'title', 'created_at']
+        announcements.forEach(a => {
+            activities.push({
+                id: `announcement-${a.id}`,
+                text: `Duyuru: ${a.title}`,
+                time: a.created_at,
+                type: 'info'
             });
-
-            announcements.forEach(a => {
-                activities.push({
-                    id: `announcement-${a.id}`,
-                    text: `Duyuru: ${a.title || 'Başlıksız'}`,
-                    time: a.created_at,
-                    type: 'info'
-                });
-            });
-
-            logger.info(`✅ Found ${announcements.length} announcements`);
-        } catch (announcementError) {
-            logger.warn('Could not fetch announcements:', announcementError.message);
-        }
+        });
 
         // For students - get recent grade updates
         if (user.role === 'student') {
-            try {
-                const student = await Student.findOne({ where: { user_id: user.id } });
-                if (student) {
-                    const recentEnrollments = await Enrollment.findAll({
-                        where: {
-                            student_id: student.id,
-                            letter_grade: { [Op.ne]: null }
-                        },
-                        order: [['updated_at', 'DESC']],
-                        limit: 3,
+            const student = await Student.findOne({ where: { user_id: user.id } });
+            if (student) {
+                const recentEnrollments = await Enrollment.findAll({
+                    where: {
+                        student_id: student.id,
+                        letter_grade: { [Op.ne]: null }
+                    },
+                    order: [['updated_at', 'DESC']],
+                    limit: 3,
+                    include: [{
+                        model: CourseSection,
+                        as: 'section',
                         include: [{
-                            model: CourseSection,
-                            as: 'section',
-                            required: false,
-                            include: [{
-                                model: Course,
-                                as: 'course',
-                                attributes: ['code', 'name'],
-                                required: false
-                            }]
+                            model: Course,
+                            as: 'course',
+                            attributes: ['code', 'name']
                         }]
-                    });
+                    }]
+                });
 
-                    recentEnrollments.forEach(e => {
-                        if (e.section?.course) {
-                            activities.push({
-                                id: `grade-${e.id}`,
-                                text: `${e.section.course.code || 'Ders'} dersi için not girildi`,
-                                time: e.updated_at,
-                                type: 'success'
-                            });
-                        }
-                    });
-
-                    logger.info(`✅ Found ${recentEnrollments.length} grade updates for student`);
-                }
-            } catch (gradeError) {
-                logger.warn('Could not fetch grade updates:', gradeError.message);
+                recentEnrollments.forEach(e => {
+                    if (e.section?.course) {
+                        activities.push({
+                            id: `grade-${e.id}`,
+                            text: `${e.section.course.code} dersi için not girildi`,
+                            time: e.updated_at,
+                            type: 'success'
+                        });
+                    }
+                });
             }
         }
 
         // For faculty - get recent attendance sessions
         if (user.role === 'faculty') {
-            try {
-                const faculty = await Faculty.findOne({ where: { user_id: user.id } });
-                if (faculty) {
-                    const recentSessions = await AttendanceSession.findAll({
-                        where: { instructor_id: faculty.id },
-                        order: [['created_at', 'DESC']],
-                        limit: 3,
+            const faculty = await Faculty.findOne({ where: { user_id: user.id } });
+            if (faculty) {
+                const recentSessions = await AttendanceSession.findAll({
+                    where: { instructor_id: faculty.id },
+                    order: [['created_at', 'DESC']],
+                    limit: 3,
+                    include: [{
+                        model: CourseSection,
+                        as: 'section',
                         include: [{
-                            model: CourseSection,
-                            as: 'section',
-                            required: false,
-                            include: [{
-                                model: Course,
-                                as: 'course',
-                                attributes: ['code', 'name'],
-                                required: false
-                            }]
+                            model: Course,
+                            as: 'course',
+                            attributes: ['code', 'name']
                         }]
-                    });
+                    }]
+                });
 
-                    recentSessions.forEach(s => {
-                        if (s.section?.course) {
-                            activities.push({
-                                id: `session-${s.id}`,
-                                text: `${s.section.course.code || 'Ders'} dersi için yoklama ${s.status === 'completed' ? 'tamamlandı' : 'başlatıldı'}`,
-                                time: s.created_at,
-                                type: s.status === 'completed' ? 'success' : 'warning'
-                            });
-                        }
-                    });
-
-                    logger.info(`✅ Found ${recentSessions.length} attendance sessions for faculty`);
-                }
-            } catch (sessionError) {
-                logger.warn('Could not fetch attendance sessions:', sessionError.message);
+                recentSessions.forEach(s => {
+                    if (s.section?.course) {
+                        activities.push({
+                            id: `session-${s.id}`,
+                            text: `${s.section.course.code} dersi için yoklama ${s.status === 'completed' ? 'tamamlandı' : 'başlatıldı'}`,
+                            time: s.created_at,
+                            type: s.status === 'completed' ? 'success' : 'warning'
+                        });
+                    }
+                });
             }
         }
 
         // Sort by time descending
-        activities.sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0));
+        activities.sort((a, b) => new Date(b.time) - new Date(a.time));
 
         // Format times to relative
         const now = new Date();
         const formattedActivities = activities.slice(0, 5).map(activity => {
-            const activityTime = new Date(activity.time || now);
+            const activityTime = new Date(activity.time);
             const diffMs = now - activityTime;
             const diffMins = Math.floor(diffMs / 60000);
             const diffHours = Math.floor(diffMs / 3600000);
             const diffDays = Math.floor(diffMs / 86400000);
 
             let timeText;
-            if (diffMins < 1) {
-                timeText = 'Az önce';
-            } else if (diffMins < 60) {
+            if (diffMins < 60) {
                 timeText = `${diffMins} dakika önce`;
             } else if (diffHours < 24) {
                 timeText = `${diffHours} saat önce`;
@@ -380,22 +307,15 @@ const getRecentActivities = async (req, res) => {
             };
         });
 
-        logger.info(`✅ Returning ${formattedActivities.length} activities`);
-
         res.status(200).json({
             success: true,
             data: formattedActivities
         });
     } catch (error) {
-        logger.error('❌ Get recent activities error:', {
-            error: error.message,
-            stack: error.stack,
-            userId: req.user?.id
-        });
+        logger.error('Get recent activities error:', error);
         res.status(500).json({
             success: false,
             message: 'Aktiviteler yüklenirken hata oluştu',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined,
             code: 'SERVER_ERROR'
         });
     }

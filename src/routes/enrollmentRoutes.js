@@ -47,4 +47,3 @@ router.get('/students/:sectionId', authenticate, authorize('faculty', 'admin'), 
 module.exports = router;
 
 
-

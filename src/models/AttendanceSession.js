@@ -109,4 +109,3 @@ module.exports = (sequelize, DataTypes) => {
 };
 
 
-
