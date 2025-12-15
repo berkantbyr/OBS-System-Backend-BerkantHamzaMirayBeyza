@@ -15,7 +15,7 @@ class EnrollmentService {
   DROP_PERIOD_DAYS = 28;
 
   /**
-   * Enroll a student in a course section
+   * Enroll a student in a course section (pending approval from faculty)
    * @param {string} studentId - Student ID
    * @param {string} sectionId - Section ID
    * @returns {Object} - Enrollment result
@@ -69,7 +69,7 @@ class EnrollmentService {
       const otherSectionEnrollment = await Enrollment.findOne({
         where: {
           student_id: studentId,
-          status: 'enrolled',
+          status: { [Op.in]: ['enrolled', 'pending'] },
         },
         include: [
           {
@@ -87,7 +87,7 @@ class EnrollmentService {
       });
 
       if (otherSectionEnrollment) {
-        throw new Error('Bu dersin başka bir section\'ına zaten kayıtlısınız');
+        throw new Error('Bu dersin başka bir section\'ına zaten kayıtlısınız veya onay bekliyor');
       }
 
       // Check prerequisites
@@ -147,36 +147,20 @@ class EnrollmentService {
       const previousEnrollment = await this.getPreviousCourseEnrollment(studentId, section.course_id);
       const isRepeat = previousEnrollment !== null && previousEnrollment.status !== 'completed';
 
-      // Atomic capacity update
-      const [updateCount] = await CourseSection.update(
-        { enrolled_count: db.sequelize.literal('enrolled_count + 1') },
-        {
-          where: {
-            id: sectionId,
-            enrolled_count: { [Op.lt]: section.capacity },
-          },
-          transaction,
-        }
-      );
-
-      if (updateCount === 0) {
-        throw new Error('Section dolu (eşzamanlı kayıt)');
-      }
-
-      // Create enrollment
-      logger.info(`📝 Creating enrollment record`);
+      // Create enrollment with PENDING status (requires faculty approval)
+      logger.info(`📝 Creating enrollment record with PENDING status`);
       const enrollment = await Enrollment.create(
         {
           student_id: studentId,
           section_id: sectionId,
-          status: 'enrolled',
+          status: 'pending', // Waiting for faculty approval
           enrollment_date: new Date(),
           is_repeat: isRepeat,
         },
         { transaction }
       );
 
-      logger.info(`✅ Enrollment created: ${enrollment.id}`);
+      logger.info(`✅ Enrollment created with PENDING status: ${enrollment.id}`);
 
       await transaction.commit();
       logger.info(`✅ Transaction committed successfully`);
@@ -192,18 +176,219 @@ class EnrollmentService {
         ],
       });
 
-      logger.info(`✅ Enrollment completed successfully - ${section.course.code} - ${section.course.name}`);
+      logger.info(`✅ Enrollment request submitted - ${section.course.code} - ${section.course.name} - Awaiting faculty approval`);
 
       return {
         success: true,
         enrollment: result,
-        message: `Successfully enrolled in ${section.course.code} - ${section.course.name}`,
+        message: `${section.course.code} - ${section.course.name} dersine kayıt talebiniz oluşturuldu. Öğretim üyesi onayı bekleniyor.`,
       };
     } catch (error) {
       logger.error(`❌ Enrollment failed - Rolling back transaction:`, error);
       await transaction.rollback();
       throw error;
     }
+  }
+
+  /**
+   * Approve a pending enrollment (faculty only)
+   * @param {string} enrollmentId - Enrollment ID
+   * @param {string} facultyId - Faculty ID who approves
+   * @returns {Object} - Approval result
+   */
+  async approveEnrollment(enrollmentId, facultyId) {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+      logger.info(`✅ Approving enrollment: ${enrollmentId} by faculty: ${facultyId}`);
+
+      const enrollment = await Enrollment.findOne({
+        where: {
+          id: enrollmentId,
+          status: 'pending',
+        },
+        include: [
+          {
+            model: CourseSection,
+            as: 'section',
+            include: [{ model: Course, as: 'course' }],
+          },
+        ],
+        transaction,
+      });
+
+      if (!enrollment) {
+        throw new Error('Bekleyen kayıt bulunamadı');
+      }
+
+      // Verify faculty is the instructor of this section
+      const faculty = await db.Faculty.findByPk(facultyId);
+      if (!faculty) {
+        throw new Error('Öğretim üyesi bulunamadı');
+      }
+
+      if (enrollment.section.instructor_id !== facultyId) {
+        throw new Error('Bu dersin öğretim üyesi değilsiniz');
+      }
+
+      // Check capacity before approving
+      if (enrollment.section.enrolled_count >= enrollment.section.capacity) {
+        throw new Error('Section dolu, kayıt onaylanamaz');
+      }
+
+      // Update enrollment status
+      enrollment.status = 'enrolled';
+      enrollment.approval_date = new Date();
+      enrollment.approved_by = facultyId;
+      await enrollment.save({ transaction });
+
+      // Increment enrolled_count
+      await CourseSection.update(
+        { enrolled_count: db.sequelize.literal('enrolled_count + 1') },
+        {
+          where: { id: enrollment.section_id },
+          transaction,
+        }
+      );
+
+      await transaction.commit();
+
+      logger.info(`✅ Enrollment approved: ${enrollmentId}`);
+
+      // Get student info for response
+      const student = await Student.findByPk(enrollment.student_id, {
+        include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] }],
+      });
+
+      return {
+        success: true,
+        message: `${student.user.first_name} ${student.user.last_name} öğrencisinin ${enrollment.section.course.code} dersine kaydı onaylandı`,
+        enrollment,
+      };
+    } catch (error) {
+      logger.error(`❌ Approval failed - Rolling back transaction:`, error);
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Reject a pending enrollment (faculty only)
+   * @param {string} enrollmentId - Enrollment ID
+   * @param {string} facultyId - Faculty ID who rejects
+   * @param {string} reason - Rejection reason
+   * @returns {Object} - Rejection result
+   */
+  async rejectEnrollment(enrollmentId, facultyId, reason = '') {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+      logger.info(`❌ Rejecting enrollment: ${enrollmentId} by faculty: ${facultyId}`);
+
+      const enrollment = await Enrollment.findOne({
+        where: {
+          id: enrollmentId,
+          status: 'pending',
+        },
+        include: [
+          {
+            model: CourseSection,
+            as: 'section',
+            include: [{ model: Course, as: 'course' }],
+          },
+        ],
+        transaction,
+      });
+
+      if (!enrollment) {
+        throw new Error('Bekleyen kayıt bulunamadı');
+      }
+
+      // Verify faculty is the instructor of this section
+      const faculty = await db.Faculty.findByPk(facultyId);
+      if (!faculty) {
+        throw new Error('Öğretim üyesi bulunamadı');
+      }
+
+      if (enrollment.section.instructor_id !== facultyId) {
+        throw new Error('Bu dersin öğretim üyesi değilsiniz');
+      }
+
+      // Update enrollment status
+      enrollment.status = 'rejected';
+      enrollment.rejection_reason = reason;
+      enrollment.approved_by = facultyId;
+      await enrollment.save({ transaction });
+
+      await transaction.commit();
+
+      logger.info(`✅ Enrollment rejected: ${enrollmentId}`);
+
+      // Get student info for response
+      const student = await Student.findByPk(enrollment.student_id, {
+        include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] }],
+      });
+
+      return {
+        success: true,
+        message: `${student.user.first_name} ${student.user.last_name} öğrencisinin ${enrollment.section.course.code} dersine kaydı reddedildi`,
+        enrollment,
+      };
+    } catch (error) {
+      logger.error(`❌ Rejection failed - Rolling back transaction:`, error);
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending enrollments for a faculty member's sections
+   * @param {string} facultyId - Faculty ID
+   * @returns {Array} - Array of pending enrollments
+   */
+  async getPendingEnrollmentsForFaculty(facultyId) {
+    logger.info(`📋 Getting pending enrollments for faculty: ${facultyId}`);
+
+    // Get all sections taught by this faculty
+    const sections = await CourseSection.findAll({
+      where: { instructor_id: facultyId, is_active: true },
+      attributes: ['id'],
+    });
+
+    const sectionIds = sections.map(s => s.id);
+
+    if (sectionIds.length === 0) {
+      return [];
+    }
+
+    const enrollments = await Enrollment.findAll({
+      where: {
+        section_id: { [Op.in]: sectionIds },
+        status: 'pending',
+      },
+      include: [
+        {
+          model: Student,
+          as: 'student',
+          include: [
+            { model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] },
+            { model: db.Department, as: 'department', attributes: ['name', 'code'] },
+          ],
+        },
+        {
+          model: CourseSection,
+          as: 'section',
+          include: [
+            { model: Course, as: 'course' },
+          ],
+        },
+      ],
+      order: [['created_at', 'ASC']],
+    });
+
+    logger.info(`✅ Found ${enrollments.length} pending enrollments`);
+
+    return enrollments;
   }
 
   /**

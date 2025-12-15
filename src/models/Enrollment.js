@@ -22,9 +22,28 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     status: {
-      type: DataTypes.ENUM('enrolled', 'dropped', 'completed', 'failed', 'withdrawn'),
+      type: DataTypes.ENUM('pending', 'enrolled', 'dropped', 'completed', 'failed', 'withdrawn', 'rejected'),
       allowNull: false,
-      defaultValue: 'enrolled',
+      defaultValue: 'pending',
+    },
+    // Rejection reason when faculty rejects enrollment
+    rejection_reason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // Faculty approval date
+    approval_date: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    // Faculty who approved/rejected
+    approved_by: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'faculty',
+        key: 'id',
+      },
     },
     enrollment_date: {
       type: DataTypes.DATE,

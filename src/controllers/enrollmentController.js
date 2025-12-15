@@ -411,6 +411,212 @@ const getMySchedule = async (req, res) => {
   }
 };
 
+/**
+ * Get pending enrollments for faculty's sections
+ * GET /api/v1/enrollments/pending
+ */
+const getPendingEnrollments = async (req, res) => {
+  try {
+    logger.info(`📋 Get pending enrollments - User: ${req.user.id}`);
+
+    // Get faculty ID from user
+    const faculty = await db.Faculty.findOne({ where: { user_id: req.user.id } });
+    if (!faculty) {
+      logger.warn(`❌ Faculty not found for user: ${req.user.id}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Öğretim üyesi kaydı bulunamadı',
+      });
+    }
+
+    logger.info(`✅ Faculty found: ${faculty.id}`);
+
+    const enrollments = await enrollmentService.getPendingEnrollmentsForFaculty(faculty.id);
+
+    res.json({
+      success: true,
+      data: enrollments.map((e) => ({
+        id: e.id,
+        student: {
+          id: e.student.id,
+          studentNumber: e.student.student_number,
+          firstName: e.student.user.first_name,
+          lastName: e.student.user.last_name,
+          email: e.student.user.email,
+          department: e.student.department?.name,
+        },
+        course: {
+          id: e.section.course.id,
+          code: e.section.course.code,
+          name: e.section.course.name,
+          credits: e.section.course.credits,
+        },
+        section: {
+          id: e.section.id,
+          sectionNumber: e.section.section_number,
+          semester: e.section.semester,
+          year: e.section.year,
+        },
+        enrollmentDate: e.enrollment_date,
+        createdAt: e.created_at,
+      })),
+    });
+  } catch (error) {
+    logger.error('❌ Get pending enrollments error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bekleyen kayıtlar alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Approve a pending enrollment
+ * PUT /api/v1/enrollments/:id/approve
+ */
+const approveEnrollment = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    logger.info(`✅ Approve enrollment request - User: ${req.user.id}, Enrollment ID: ${id}`);
+
+    // Get faculty ID from user
+    const faculty = await db.Faculty.findOne({ where: { user_id: req.user.id } });
+    if (!faculty) {
+      logger.warn(`❌ Faculty not found for user: ${req.user.id}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Öğretim üyesi kaydı bulunamadı',
+      });
+    }
+
+    const result = await enrollmentService.approveEnrollment(id, faculty.id);
+
+    logger.info(`✅ Enrollment approved: ${id}`);
+
+    res.json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    logger.error('❌ Approve enrollment error:', error);
+
+    let statusCode = 400;
+    if (error.message.includes('bulunamadı')) {
+      statusCode = 404;
+    } else if (error.message.includes('değilsiniz')) {
+      statusCode = 403;
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Kayıt onaylanırken hata oluştu',
+    });
+  }
+};
+
+/**
+ * Reject a pending enrollment
+ * PUT /api/v1/enrollments/:id/reject
+ */
+const rejectEnrollment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    logger.info(`❌ Reject enrollment request - User: ${req.user.id}, Enrollment ID: ${id}`);
+
+    // Get faculty ID from user
+    const faculty = await db.Faculty.findOne({ where: { user_id: req.user.id } });
+    if (!faculty) {
+      logger.warn(`❌ Faculty not found for user: ${req.user.id}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Öğretim üyesi kaydı bulunamadı',
+      });
+    }
+
+    const result = await enrollmentService.rejectEnrollment(id, faculty.id, reason);
+
+    logger.info(`✅ Enrollment rejected: ${id}`);
+
+    res.json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    logger.error('❌ Reject enrollment error:', error);
+
+    let statusCode = 400;
+    if (error.message.includes('bulunamadı')) {
+      statusCode = 404;
+    } else if (error.message.includes('değilsiniz')) {
+      statusCode = 403;
+    }
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message || 'Kayıt reddedilirken hata oluştu',
+    });
+  }
+};
+
+/**
+ * Bulk approve enrollments
+ * PUT /api/v1/enrollments/approve-all
+ */
+const approveAllEnrollments = async (req, res) => {
+  try {
+    const { enrollmentIds } = req.body;
+
+    logger.info(`✅ Bulk approve enrollments - User: ${req.user.id}, Count: ${enrollmentIds?.length}`);
+
+    if (!enrollmentIds || !Array.isArray(enrollmentIds) || enrollmentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Onaylanacak kayıt ID\'leri gerekli',
+      });
+    }
+
+    // Get faculty ID from user
+    const faculty = await db.Faculty.findOne({ where: { user_id: req.user.id } });
+    if (!faculty) {
+      return res.status(403).json({
+        success: false,
+        message: 'Öğretim üyesi kaydı bulunamadı',
+      });
+    }
+
+    const results = {
+      approved: [],
+      failed: [],
+    };
+
+    for (const enrollmentId of enrollmentIds) {
+      try {
+        await enrollmentService.approveEnrollment(enrollmentId, faculty.id);
+        results.approved.push(enrollmentId);
+      } catch (error) {
+        results.failed.push({ id: enrollmentId, error: error.message });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${results.approved.length} kayıt onaylandı, ${results.failed.length} başarısız`,
+      data: results,
+    });
+  } catch (error) {
+    logger.error('❌ Bulk approve error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Toplu onay işlemi sırasında hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   enrollInCourse,
   dropCourse,
@@ -418,5 +624,9 @@ module.exports = {
   getSectionStudents,
   checkEligibility,
   getMySchedule,
+  getPendingEnrollments,
+  approveEnrollment,
+  rejectEnrollment,
+  approveAllEnrollments,
 };
 
