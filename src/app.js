@@ -95,12 +95,13 @@ app.use((req, res, next) => {
 // API routes
 app.use('/api/v1', routes);
 
-// Root endpoint
+// Root endpoint - Cloud Run health check için
 app.get('/', (req, res) => {
   res.json({
     success: true,
     message: 'Üniversite OBS API',
     version: '1.0.0',
+    database: dbConnected ? 'connected' : 'connecting...',
     documentation: '/api/v1/health',
   });
 });
@@ -188,31 +189,62 @@ const initializeBackgroundJobs = () => {
   }
 };
 
+// Database connection status
+let dbConnected = false;
+
+// Connect to database (can be called after server starts)
+const connectDatabase = async () => {
+  const maxRetries = 5;
+  let retries = 0;
+
+  while (retries < maxRetries && !dbConnected) {
+    try {
+      // Test database connection
+      await db.sequelize.authenticate();
+      logger.info('Database connection established successfully');
+      dbConnected = true;
+
+      // Sync database
+      // Note: alter: true can cause issues with too many indexes
+      // Use force: false to avoid dropping tables, and only sync if needed
+      try {
+        // Try alter first, but catch errors if too many indexes
+        await db.sequelize.sync({ alter: true });
+        logger.info('Database synced with alter');
+      } catch (syncError) {
+        // If alter fails (e.g., too many indexes), just authenticate
+        if (syncError.message.includes('Too many keys') || syncError.message.includes('max 64 keys')) {
+          logger.warn('Database sync with alter failed due to index limit. Tables already exist, continuing...');
+          logger.warn('If you need to modify schema, use migrations instead of sync');
+        } else {
+          logger.error('Database sync error:', syncError.message);
+        }
+      }
+
+      // Initialize background jobs after database connects
+      initializeBackgroundJobs();
+      return true;
+    } catch (error) {
+      retries++;
+      logger.error(`Database connection attempt ${retries}/${maxRetries} failed:`, error.message);
+      if (retries < maxRetries) {
+        logger.info(`Retrying in 5 seconds...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    }
+  }
+
+  if (!dbConnected) {
+    logger.error('Failed to connect to database after all retries. API will return errors for database operations.');
+  }
+  return dbConnected;
+};
+
 // Database connection and server start
 const startServer = async () => {
   try {
-    // Test database connection
-    await db.sequelize.authenticate();
-    logger.info('Database connection established successfully');
-
-    // Sync database
-    // Note: alter: true can cause issues with too many indexes
-    // Use force: false to avoid dropping tables, and only sync if needed
-    try {
-      // Try alter first, but catch errors if too many indexes
-      await db.sequelize.sync({ alter: true });
-      logger.info('Database synced with alter');
-    } catch (syncError) {
-      // If alter fails (e.g., too many indexes), just authenticate
-      if (syncError.message.includes('Too many keys') || syncError.message.includes('max 64 keys')) {
-        logger.warn('Database sync with alter failed due to index limit. Tables already exist, continuing...');
-        logger.warn('If you need to modify schema, use migrations instead of sync');
-      } else {
-        throw syncError;
-      }
-    }
-
-    // Start server - 0.0.0.0 ile ağdaki diğer cihazlardan erişime izin ver
+    // Start server FIRST - 0.0.0.0 ile ağdaki diğer cihazlardan erişime izin ver
+    // This ensures Cloud Run health check passes immediately
     const HOST = process.env.HOST || '0.0.0.0';
     server = app.listen(PORT, HOST, () => {
       logger.info(`Server is running on ${HOST}:${PORT}`);
@@ -220,8 +252,14 @@ const startServer = async () => {
       logger.info(`Local: http://localhost:${PORT}`);
       logger.info(`Network: http://${getLocalIP()}:${PORT}`);
 
-      // Initialize background jobs after server starts
-      initializeBackgroundJobs();
+      // Connect to database AFTER server starts (non-blocking)
+      connectDatabase().then((connected) => {
+        if (connected) {
+          logger.info('Database ready - API fully operational');
+        } else {
+          logger.warn('Database not connected - some API endpoints may fail');
+        }
+      });
     });
 
     // Handle server errors
@@ -235,12 +273,6 @@ const startServer = async () => {
     });
   } catch (error) {
     logger.error('Unable to start server:', error);
-    // Close database if it was opened
-    try {
-      await db.sequelize.close();
-    } catch (dbError) {
-      // Ignore errors during cleanup
-    }
     process.exit(1);
   }
 };
