@@ -29,3 +29,4 @@ module.exports = {
   modulePathIgnorePatterns: ['<rootDir>/node_modules/'],
   setupFilesAfterEnv: [],
 };
+

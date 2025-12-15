@@ -251,11 +251,22 @@ const getMyCourses = async (req, res) => {
       error: error.message,
       stack: error.stack,
       user: req.user?.id,
+      name: error.name,
+      code: error.code,
     });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Dersler alınırken hata oluştu';
+    if (error.name === 'SequelizeConnectionError' || error.name === 'SequelizeConnectionRefusedError') {
+      errorMessage = 'Veritabanı bağlantı hatası. Lütfen daha sonra tekrar deneyin.';
+    } else if (error.name === 'SequelizeDatabaseError') {
+      errorMessage = 'Veritabanı sorgu hatası: ' + error.message;
+    }
+    
     res.status(500).json({
       success: false,
-      message: 'Dersler alınırken hata oluştu',
-      error: error.message,
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -629,4 +640,5 @@ module.exports = {
   rejectEnrollment,
   approveAllEnrollments,
 };
+
 

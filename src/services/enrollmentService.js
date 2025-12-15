@@ -502,10 +502,12 @@ class EnrollmentService {
   /**
    * Get student's current enrollments
    * @param {string} studentId - Student ID
-   * @param {Object} options - { semester, year }
+   * @param {Object} options - { semester, year, status }
    * @returns {Array} - Array of enrollments
    */
   async getStudentEnrollments(studentId, options = {}) {
+    logger.info(`📚 Getting enrollments for student: ${studentId}`);
+
     const whereClause = {
       student_id: studentId,
     };
@@ -514,30 +516,36 @@ class EnrollmentService {
       whereClause.status = options.status;
     }
 
+    // Build section where clause for semester/year filtering
     const sectionWhere = {};
     if (options.semester) sectionWhere.semester = options.semester;
     if (options.year) sectionWhere.year = options.year;
 
-    return await Enrollment.findAll({
+    const enrollments = await Enrollment.findAll({
       where: whereClause,
       include: [
         {
           model: CourseSection,
           as: 'section',
           where: Object.keys(sectionWhere).length > 0 ? sectionWhere : undefined,
+          required: false,
           include: [
-            { model: Course, as: 'course' },
+            { model: Course, as: 'course', required: false },
             {
               model: db.Faculty,
               as: 'instructor',
-              include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'] }],
+              required: false,
+              include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }],
             },
-            { model: db.Classroom, as: 'classroom' },
+            { model: db.Classroom, as: 'classroom', required: false },
           ],
         },
       ],
-      order: [[{ model: CourseSection, as: 'section' }, 'year', 'DESC']],
+      order: [['created_at', 'DESC']],
     });
+
+    logger.info(`✅ Found ${enrollments.length} enrollments for student: ${studentId}`);
+    return enrollments;
   }
 
   /**
@@ -572,55 +580,84 @@ class EnrollmentService {
    * @returns {Object} - Eligibility check result
    */
   async checkEnrollmentEligibility(studentId, sectionId) {
-    const section = await CourseSection.findByPk(sectionId, {
-      include: [{ model: Course, as: 'course' }],
-    });
+    try {
+      logger.info(`🔍 Checking eligibility - Student: ${studentId}, Section: ${sectionId}`);
+      
+      const section = await CourseSection.findByPk(sectionId, {
+        include: [{ model: Course, as: 'course' }],
+      });
 
-    if (!section) {
-      return { eligible: false, reason: 'Section bulunamadı' };
-    }
+      if (!section) {
+        logger.warn(`❌ Section not found: ${sectionId}`);
+        return { eligible: false, reason: 'Section bulunamadı', issues: ['Section bulunamadı'] };
+      }
 
-    const checks = {
-      isActive: section.is_active,
-      hasCapacity: section.enrolled_count < section.capacity,
-      prerequisites: await prerequisiteService.checkPrerequisites(studentId, section.course_id),
-      scheduleConflict: await scheduleConflictService.checkScheduleConflict(studentId, sectionId),
-      existingEnrollment: await Enrollment.findOne({ where: { student_id: studentId, section_id: sectionId } }),
-    };
+      logger.info(`📚 Section found: ${section.course?.code || 'N/A'} - Section ${section.section_number}`);
 
-    // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
-    const allowConflicts = process.env.ALLOW_SCHEDULE_CONFLICTS === 'true';
+      const checks = {
+        isActive: section.is_active,
+        hasCapacity: section.enrolled_count < section.capacity,
+        prerequisites: await prerequisiteService.checkPrerequisites(studentId, section.course_id),
+        scheduleConflict: await scheduleConflictService.checkScheduleConflict(studentId, sectionId),
+        existingEnrollment: await Enrollment.findOne({ where: { student_id: studentId, section_id: sectionId } }),
+      };
+      
+      logger.info(`✅ Eligibility checks completed:`, {
+        isActive: checks.isActive,
+        hasCapacity: checks.hasCapacity,
+        prerequisitesSatisfied: checks.prerequisites?.satisfied,
+        hasConflict: checks.scheduleConflict?.hasConflict,
+        existingEnrollment: checks.existingEnrollment?.status || null,
+      });
 
-    const issues = [];
+      // Allow schedule conflicts if ALLOW_SCHEDULE_CONFLICTS is enabled
+      const allowConflicts = process.env.ALLOW_SCHEDULE_CONFLICTS === 'true';
 
-    if (!checks.isActive) issues.push('Section aktif değil');
-    if (!checks.hasCapacity) issues.push('Section dolu');
-    if (checks.existingEnrollment) issues.push(`Bu section için zaten kaydınız var (Durum: ${checks.existingEnrollment.status})`);
-    if (!checks.prerequisites.satisfied) {
-      issues.push(`Eksik önkoşullar: ${checks.prerequisites.missing.map((m) => m.courseCode).join(', ')}`);
-    }
-    // Only add schedule conflict as an issue if conflicts are not allowed
-    if (checks.scheduleConflict.hasConflict && !allowConflicts) {
-      issues.push('Program çakışması tespit edildi');
-    }
+      const issues = [];
 
-    return {
-      eligible: issues.length === 0,
-      issues,
-      details: {
-        section: {
-          code: section.course.code,
-          name: section.course.name,
-          sectionNumber: section.section_number,
-          capacity: section.capacity,
-          enrolled: section.enrolled_count,
-          available: section.capacity - section.enrolled_count,
+      if (!checks.isActive) issues.push('Section aktif değil');
+      if (!checks.hasCapacity) issues.push('Section dolu');
+      if (checks.existingEnrollment) issues.push(`Bu section için zaten kaydınız var (Durum: ${checks.existingEnrollment.status})`);
+      if (!checks.prerequisites.satisfied) {
+        issues.push(`Eksik önkoşullar: ${checks.prerequisites.missing.map((m) => m.courseCode).join(', ')}`);
+      }
+      // Only add schedule conflict as an issue if conflicts are not allowed
+      if (checks.scheduleConflict.hasConflict && !allowConflicts) {
+        issues.push('Program çakışması tespit edildi');
+      }
+
+      logger.info(`✅ Eligibility result: ${issues.length === 0 ? 'Eligible' : 'Not eligible'}, Issues: ${issues.join(', ') || 'None'}`);
+
+      return {
+        eligible: issues.length === 0,
+        issues,
+        details: {
+          section: {
+            code: section.course.code,
+            name: section.course.name,
+            sectionNumber: section.section_number,
+            capacity: section.capacity,
+            enrolled: section.enrolled_count,
+            available: section.capacity - section.enrolled_count,
+          },
+          ...checks,
         },
-        ...checks,
-      },
-    };
+      };
+    } catch (error) {
+      logger.error(`❌ checkEnrollmentEligibility error - Student: ${studentId}, Section: ${sectionId}:`, {
+        error: error.message,
+        stack: error.stack,
+      });
+      // Return not eligible with error info instead of throwing
+      return {
+        eligible: false,
+        issues: ['Uygunluk kontrolü sırasında hata oluştu'],
+        error: error.message,
+      };
+    }
   }
 }
 
 module.exports = new EnrollmentService();
+
 

@@ -152,10 +152,11 @@ class ScheduleConflictService {
           model: CourseSection,
           as: 'section',
           where: { semester, year },
+          required: false,
           include: [
-            { model: db.Course, as: 'course', attributes: ['code', 'name'] },
-            { model: db.Faculty, as: 'instructor', include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'] }] },
-            { model: db.Classroom, as: 'classroom', attributes: ['building', 'room_number'] },
+            { model: db.Course, as: 'course', attributes: ['code', 'name'], required: false },
+            { model: db.Faculty, as: 'instructor', required: false, include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }] },
+            { model: db.Classroom, as: 'classroom', attributes: ['building', 'room_number'], required: false },
           ],
         },
       ],
@@ -165,6 +166,9 @@ class ScheduleConflictService {
 
     for (const enrollment of enrollments) {
       const section = enrollment.section;
+      // Skip if no section data
+      if (!section || !section.course) continue;
+      
       const slots = this.parseSchedule(section.schedule_json);
 
       for (const slot of slots) {
@@ -173,11 +177,11 @@ class ScheduleConflictService {
           start_time: slot.start_time,
           end_time: slot.end_time,
           course: {
-            code: section.course.code,
-            name: section.course.name,
+            code: section.course?.code || 'N/A',
+            name: section.course?.name || 'N/A',
           },
           sectionNumber: section.section_number,
-          instructor: section.instructor
+          instructor: section.instructor?.user
             ? `${section.instructor.user.first_name} ${section.instructor.user.last_name}`
             : null,
           classroom: section.classroom
@@ -200,4 +204,5 @@ class ScheduleConflictService {
 }
 
 module.exports = new ScheduleConflictService();
+
 

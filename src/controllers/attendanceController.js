@@ -504,7 +504,8 @@ const getMyAttendance = async (req, res) => {
         {
           model: CourseSection,
           as: 'section',
-          include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'name', 'credits'] }],
+          required: false,
+          include: [{ model: Course, as: 'course', attributes: ['id', 'code', 'name', 'credits'], required: false }],
         },
       ],
     });
@@ -984,4 +985,5 @@ module.exports = {
   regenerateQRCode,
   getCurrentQRCode,
 };
+
 

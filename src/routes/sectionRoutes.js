@@ -25,3 +25,4 @@ router.put('/:id', authenticate, authorize('admin'), sectionController.updateSec
 
 module.exports = router;
 
+

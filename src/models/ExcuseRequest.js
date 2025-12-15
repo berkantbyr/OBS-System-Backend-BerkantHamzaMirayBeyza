@@ -85,3 +85,4 @@ module.exports = (sequelize, DataTypes) => {
   return ExcuseRequest;
 };
 
+

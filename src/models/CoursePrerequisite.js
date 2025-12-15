@@ -49,3 +49,4 @@ module.exports = (sequelize, DataTypes) => {
   return CoursePrerequisite;
 };
 
+

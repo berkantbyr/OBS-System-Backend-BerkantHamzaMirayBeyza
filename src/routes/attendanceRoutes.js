@@ -101,3 +101,4 @@ router.put('/excuse-requests/:id/reject', authenticate, authorize('faculty', 'ad
 
 module.exports = router;
 
+

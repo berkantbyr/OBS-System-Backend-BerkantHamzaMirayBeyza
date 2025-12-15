@@ -59,3 +59,4 @@ module.exports = (sequelize, DataTypes) => {
   return Classroom;
 };
 
+

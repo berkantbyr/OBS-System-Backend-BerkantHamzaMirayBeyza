@@ -86,3 +86,4 @@ module.exports = (sequelize, DataTypes) => {
   return CourseSection;
 };
 
+

@@ -342,10 +342,40 @@ async function seed() {
 
     // Create departments first for faculty/student
     const defaultDepartments = [
-      { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi' },
-      { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi' },
-      { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi' },
-      { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi' },
+      // Mühendislik Fakültesi
+      { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      { code: 'EE', name: 'Elektrik-Elektronik Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      { code: 'ME', name: 'Makine Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      { code: 'CE', name: 'İnşaat Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      { code: 'IE', name: 'Endüstri Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      { code: 'CHE', name: 'Kimya Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+      // Fen Fakültesi
+      { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi', is_active: true },
+      { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi', is_active: true },
+      { code: 'CHEM', name: 'Kimya', faculty: 'Fen Fakültesi', is_active: true },
+      { code: 'BIO', name: 'Biyoloji', faculty: 'Fen Fakültesi', is_active: true },
+      { code: 'STAT', name: 'İstatistik', faculty: 'Fen Fakültesi', is_active: true },
+      // İşletme Fakültesi
+      { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi', is_active: true },
+      { code: 'ECON', name: 'Ekonomi', faculty: 'İşletme Fakültesi', is_active: true },
+      { code: 'FIN', name: 'Finans', faculty: 'İşletme Fakültesi', is_active: true },
+      { code: 'MIS', name: 'Yönetim Bilişim Sistemleri', faculty: 'İşletme Fakültesi', is_active: true },
+      // Hukuk Fakültesi
+      { code: 'LAW', name: 'Hukuk', faculty: 'Hukuk Fakültesi', is_active: true },
+      // Tıp Fakültesi
+      { code: 'MED', name: 'Tıp', faculty: 'Tıp Fakültesi', is_active: true },
+      // Edebiyat Fakültesi
+      { code: 'PSY', name: 'Psikoloji', faculty: 'Edebiyat Fakültesi', is_active: true },
+      { code: 'SOC', name: 'Sosyoloji', faculty: 'Edebiyat Fakültesi', is_active: true },
+      { code: 'HIST', name: 'Tarih', faculty: 'Edebiyat Fakültesi', is_active: true },
+      { code: 'ENG', name: 'İngiliz Dili ve Edebiyatı', faculty: 'Edebiyat Fakültesi', is_active: true },
+      { code: 'TUR', name: 'Türk Dili ve Edebiyatı', faculty: 'Edebiyat Fakültesi', is_active: true },
+      // Mimarlık Fakültesi
+      { code: 'ARCH', name: 'Mimarlık', faculty: 'Mimarlık Fakültesi', is_active: true },
+      { code: 'ID', name: 'İç Mimarlık', faculty: 'Mimarlık Fakültesi', is_active: true },
+      // İletişim Fakültesi
+      { code: 'COMM', name: 'İletişim', faculty: 'İletişim Fakültesi', is_active: true },
+      { code: 'PR', name: 'Halkla İlişkiler', faculty: 'İletişim Fakültesi', is_active: true },
     ];
 
     for (const dept of defaultDepartments) {
@@ -354,7 +384,7 @@ async function seed() {
         defaults: dept,
       });
     }
-    console.log('✅ Bölümler oluşturuldu');
+    console.log(`✅ ${defaultDepartments.length} bölüm oluşturuldu`);
 
     const cseDept = await Department.findOne({ where: { code: 'CSE' } });
     const mathDept = await Department.findOne({ where: { code: 'MATH' } });
@@ -506,10 +536,10 @@ async function seed() {
 
       // Create basic departments
       const defaultDepts = [
-        { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi' },
-        { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi' },
-        { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi' },
-        { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi' },
+        { code: 'CSE', name: 'Bilgisayar Mühendisliği', faculty: 'Mühendislik Fakültesi', is_active: true },
+        { code: 'MATH', name: 'Matematik', faculty: 'Fen Fakültesi', is_active: true },
+        { code: 'PHYS', name: 'Fizik', faculty: 'Fen Fakültesi', is_active: true },
+        { code: 'BA', name: 'İşletme', faculty: 'İşletme Fakültesi', is_active: true },
       ];
 
       for (const dept of defaultDepts) {
@@ -762,4 +792,5 @@ async function seed() {
 }
 
 seed();
+
 
