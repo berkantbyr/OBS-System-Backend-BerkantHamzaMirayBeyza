@@ -21,8 +21,7 @@ describe('Auth Service - Unit Tests', () => {
     jest.clearAllMocks();
   });
 
-  // Skip register tests - requires complex transaction mocking that doesn't match service implementation
-  describe.skip('register', () => {
+  describe('register', () => {
     const mockUserData = {
       email: 'test@university.edu',
       password: 'Password123',
@@ -38,14 +37,20 @@ describe('Auth Service - Unit Tests', () => {
       db.Department.findByPk.mockResolvedValue(null);
       hashPassword.mockResolvedValue('hashedPassword123');
 
+      const mockTransaction = {
+        commit: jest.fn().mockResolvedValue(true),
+        rollback: jest.fn().mockResolvedValue(true),
+      };
+      db.sequelize.transaction = jest.fn().mockResolvedValue(mockTransaction);
+
       const mockUser = {
         id: 'user-id-123',
         email: mockUserData.email,
         role: mockUserData.role,
         first_name: mockUserData.firstName,
         last_name: mockUserData.lastName,
-        is_active: false,
-        is_verified: false,
+        is_active: true,
+        is_verified: true,
         toSafeObject: jest.fn().mockReturnValue({
           id: 'user-id-123',
           email: mockUserData.email,
@@ -53,16 +58,8 @@ describe('Auth Service - Unit Tests', () => {
         }),
       };
 
-      db.sequelize.transaction.mockImplementation((callback) => {
-        const mockTransaction = {};
-        return callback(mockTransaction);
-      });
-
       db.User.create.mockResolvedValue(mockUser);
       db.Student.create.mockResolvedValue({});
-      jwtUtils.generateVerificationToken.mockReturnValue('verification-token');
-      jwtUtils.getExpirationDate.mockReturnValue(new Date());
-      db.EmailVerification.create.mockResolvedValue({});
 
       const result = await authService.register(mockUserData);
 
@@ -72,6 +69,8 @@ describe('Auth Service - Unit Tests', () => {
       expect(hashPassword).toHaveBeenCalledWith(mockUserData.password);
       expect(db.User.create).toHaveBeenCalled();
       expect(db.Student.create).toHaveBeenCalled();
+      expect(db.sequelize.transaction).toHaveBeenCalled();
+      expect(mockTransaction.commit).toHaveBeenCalled();
     });
 
     it('should successfully register a new faculty member', async () => {
@@ -88,27 +87,27 @@ describe('Auth Service - Unit Tests', () => {
       db.Department.findByPk.mockResolvedValue({ id: 'dept-id' });
       hashPassword.mockResolvedValue('hashedPassword123');
 
+      const mockTransaction = {
+        commit: jest.fn().mockResolvedValue(true),
+        rollback: jest.fn().mockResolvedValue(true),
+      };
+      db.sequelize.transaction = jest.fn().mockResolvedValue(mockTransaction);
+
       const mockUser = {
         id: 'user-id-123',
         toSafeObject: jest.fn().mockReturnValue({ id: 'user-id-123' }),
       };
 
-      db.sequelize.transaction.mockImplementation((callback) => {
-        const mockTransaction = {};
-        return callback(mockTransaction);
-      });
-
       db.User.create.mockResolvedValue(mockUser);
       db.Faculty.create.mockResolvedValue({});
-      jwtUtils.generateVerificationToken.mockReturnValue('verification-token');
-      jwtUtils.getExpirationDate.mockReturnValue(new Date());
-      db.EmailVerification.create.mockResolvedValue({});
 
       const result = await authService.register(facultyData);
 
       expect(result).toHaveProperty('message');
       expect(db.Faculty.findOne).toHaveBeenCalledWith({ where: { employee_number: facultyData.employeeNumber } });
       expect(db.Faculty.create).toHaveBeenCalled();
+      expect(db.sequelize.transaction).toHaveBeenCalled();
+      expect(mockTransaction.commit).toHaveBeenCalled();
     });
 
     it('should throw error if email already exists', async () => {
@@ -155,49 +154,19 @@ describe('Auth Service - Unit Tests', () => {
       db.Student.findOne.mockResolvedValue(null);
       hashPassword.mockResolvedValue('hashedPassword123');
 
-      const mockRollback = jest.fn();
-      const mockTransaction = { rollback: mockRollback };
-
-      db.sequelize.transaction.mockImplementation((callback) => {
-        try {
-          return callback(mockTransaction);
-        } catch (error) {
-          mockRollback();
-          throw error;
-        }
-      });
+      const mockTransaction = {
+        commit: jest.fn(),
+        rollback: jest.fn().mockResolvedValue(true),
+      };
+      db.sequelize.transaction = jest.fn().mockResolvedValue(mockTransaction);
 
       db.User.create.mockRejectedValue(new Error('Database error'));
 
       await expect(authService.register(mockUserData)).rejects.toThrow('Database error');
+      expect(mockTransaction.rollback).toHaveBeenCalled();
     });
 
-    it('should create email verification record', async () => {
-      db.User.findOne.mockResolvedValue(null);
-      db.Student.findOne.mockResolvedValue(null);
-      hashPassword.mockResolvedValue('hashedPassword123');
-
-      const mockUser = {
-        id: 'user-id-123',
-        toSafeObject: jest.fn().mockReturnValue({ id: 'user-id-123' }),
-      };
-
-      db.sequelize.transaction.mockImplementation((callback) => {
-        const mockTransaction = {};
-        return callback(mockTransaction);
-      });
-
-      db.User.create.mockResolvedValue(mockUser);
-      db.Student.create.mockResolvedValue({});
-      jwtUtils.generateVerificationToken.mockReturnValue('verification-token');
-      jwtUtils.getExpirationDate.mockReturnValue(new Date());
-      db.EmailVerification.create.mockResolvedValue({});
-
-      await authService.register(mockUserData);
-
-      expect(db.EmailVerification.create).toHaveBeenCalled();
-      expect(emailService.sendVerificationEmail).toHaveBeenCalled();
-    });
+    // Email doğrulama akışı serviste devre dışı, o yüzden ekstra email verification kaydı beklemiyoruz
   });
 
   describe('verifyEmail', () => {
@@ -475,6 +444,43 @@ describe('Auth Service - Unit Tests', () => {
         })
       );
     });
+
+    it('should throw error when email or password is missing', async () => {
+      await expect(authService.login('', mockPassword)).rejects.toThrow('E-posta ve şifre gereklidir');
+      await expect(authService.login(mockEmail, '')).rejects.toThrow('E-posta ve şifre gereklidir');
+      expect(db.User.findOne).not.toHaveBeenCalled();
+    });
+
+    it('should map database connection errors to friendly message', async () => {
+      const dbError = new Error('Connection refused');
+      dbError.name = 'SequelizeConnectionError';
+      db.User.findOne.mockRejectedValue(dbError);
+
+      await expect(authService.login(mockEmail, mockPassword)).rejects.toThrow(
+        'Veritabanı bağlantı hatası. Lütfen daha sonra tekrar deneyin.'
+      );
+    });
+
+    it('should throw friendly error when password comparison fails unexpectedly', async () => {
+      const mockUser = {
+        id: 'user-id',
+        email: mockEmail,
+        password_hash: 'hashedPassword',
+        is_verified: true,
+        is_active: true,
+        update: jest.fn().mockResolvedValue(true),
+        toSafeObject: jest.fn().mockReturnValue({ id: 'user-id', email: mockEmail }),
+        student: null,
+        faculty: null,
+      };
+
+      db.User.findOne.mockResolvedValue(mockUser);
+      comparePassword.mockRejectedValue(new Error('bcrypt internal error'));
+
+      await expect(authService.login(mockEmail, mockPassword)).rejects.toThrow(
+        'Şifre doğrulama sırasında bir hata oluştu'
+      );
+    });
   });
 
   describe('refreshAccessToken', () => {
@@ -624,11 +630,32 @@ describe('Auth Service - Unit Tests', () => {
         { where: { user_id: mockUser.id, is_used: false } }
       );
     });
+
+    it('should handle email sending failure gracefully', async () => {
+      const email = 'test@university.edu';
+      const mockUser = {
+        id: 'user-id',
+        email,
+        first_name: 'Test',
+      };
+
+      db.User.findOne.mockResolvedValue(mockUser);
+      jwtUtils.generateResetToken.mockReturnValue('reset-token');
+      jwtUtils.getExpirationDate.mockReturnValue(new Date());
+      db.PasswordReset.update.mockResolvedValue([1]);
+      db.PasswordReset.create.mockResolvedValue({});
+      emailService.sendPasswordResetEmail.mockRejectedValue(new Error('SMTP error'));
+
+      const result = await authService.forgotPassword(email);
+
+      expect(result).toHaveProperty('message');
+      // Even if email fails, tokens should still be saved
+      expect(db.PasswordReset.create).toHaveBeenCalled();
+    });
   });
 
   describe('resetPassword', () => {
-    // Skip - assertion mismatch with actual service implementation
-    it.skip('should successfully reset password with valid token', async () => {
+    it('should successfully reset password with valid token', async () => {
       const token = 'valid-reset-token';
       const newPassword = 'NewPassword123';
       const decoded = { userId: 'user-id', email: 'test@test.com' };
@@ -646,22 +673,21 @@ describe('Auth Service - Unit Tests', () => {
       // Mock user lookup for password reset
       const mockUser = {
         id: decoded.userId,
-        password_hash: 'newHashedPassword',
+        password_hash: 'oldHash',
         update: jest.fn().mockResolvedValue(true),
         reload: jest.fn().mockResolvedValue(true),
       };
       db.User.findByPk.mockResolvedValue(mockUser);
-      db.User.update.mockResolvedValue([1]);
       db.RefreshToken.update.mockResolvedValue([1]);
+      comparePassword.mockResolvedValue(true);
 
       const result = await authService.resetPassword(token, newPassword);
 
       expect(result).toHaveProperty('message');
       expect(hashPassword).toHaveBeenCalledWith(newPassword);
-      expect(db.User.update).toHaveBeenCalledWith(
-        { password_hash: 'newHashedPassword' },
-        { where: { id: decoded.userId } }
-      );
+      expect(mockUser.update).toHaveBeenCalledWith({ password_hash: 'newHashedPassword' });
+      expect(mockUser.reload).toHaveBeenCalled();
+      expect(comparePassword).toHaveBeenCalled();
       expect(mockResetRecord.update).toHaveBeenCalledWith({ is_used: true });
       expect(db.RefreshToken.update).toHaveBeenCalledWith(
         { is_revoked: true },

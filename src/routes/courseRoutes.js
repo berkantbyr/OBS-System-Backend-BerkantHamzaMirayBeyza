@@ -29,3 +29,4 @@ router.delete('/:id', authenticate, authorize('admin'), courseController.deleteC
 module.exports = router;
 
 
+

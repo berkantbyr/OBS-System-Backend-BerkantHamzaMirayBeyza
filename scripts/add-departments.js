@@ -107,3 +107,4 @@ async function addDepartments() {
 
 addDepartments();
 
+

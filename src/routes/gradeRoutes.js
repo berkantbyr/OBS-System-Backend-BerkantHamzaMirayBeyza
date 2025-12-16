@@ -26,3 +26,4 @@ router.post('/bulk', authenticate, authorize('faculty', 'admin'), gradeControlle
 module.exports = router;
 
 
+

@@ -1,3 +1,28 @@
+jest.mock('../../src/models', () => {
+  const mockFuncs = {
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    count: jest.fn()
+  };
+
+  return {
+    Enrollment: { ...mockFuncs },
+    CourseSection: { ...mockFuncs },
+    Course: { ...mockFuncs },
+    Faculty: { ...mockFuncs },
+    Classroom: { ...mockFuncs },
+    User: { ...mockFuncs },
+    sequelize: {
+      transaction: jest.fn(cb => cb ? cb({}) : Promise.resolve())
+    }
+  };
+});
+
+const db = require('../../src/models');
 const scheduleConflictService = require('../../src/services/scheduleConflictService');
 
 describe('ScheduleConflictService', () => {
@@ -88,14 +113,96 @@ describe('ScheduleConflictService', () => {
   });
 
   describe('checkScheduleConflict', () => {
-    it('should be a function', () => {
-      expect(typeof scheduleConflictService.checkScheduleConflict).toBe('function');
+    it('should return no conflict when new section has no schedule', async () => {
+      const { CourseSection, Enrollment } = db;
+
+      CourseSection.findByPk.mockResolvedValue({
+        id: 1,
+        semester: 'fall',
+        year: 2024,
+        schedule_json: null,
+        course: { code: 'CS101', name: 'Programlama' }
+      });
+
+      Enrollment.findAll.mockResolvedValue([]);
+
+      const result = await scheduleConflictService.checkScheduleConflict('student-1', 1);
+
+      expect(result).toEqual({ hasConflict: false, conflicts: [] });
+    });
+
+    it('should detect conflict with existing enrolled section in same semester', async () => {
+      const { CourseSection, Enrollment, Course } = db;
+
+      // New section
+      CourseSection.findByPk.mockResolvedValue({
+        id: 2,
+        semester: 'fall',
+        year: 2024,
+        section_number: '2',
+        schedule_json: JSON.stringify([
+          { day: 'monday', start_time: '09:00', end_time: '10:30' }
+        ]),
+        course: { code: 'CS101', name: 'Programlama I' }
+      });
+
+      // Existing enrollment with overlapping schedule
+      Enrollment.findAll.mockResolvedValue([{
+        section: {
+          section_number: '1',
+          semester: 'fall',
+          year: 2024,
+          schedule_json: JSON.stringify([
+            { day: 'monday', start_time: '09:30', end_time: '11:00' }
+          ]),
+          course: { code: 'MATH101', name: 'Matematik I' }
+        }
+      }]);
+
+      const result = await scheduleConflictService.checkScheduleConflict('student-1', 2);
+
+      expect(result.hasConflict).toBe(true);
+      expect(result.conflicts).toHaveLength(1);
+      expect(result.conflicts[0]).toMatchObject({
+        conflictDay: 'monday',
+        existingCourse: expect.objectContaining({ code: 'MATH101' }),
+        newCourse: expect.objectContaining({ code: 'CS101' })
+      });
     });
   });
 
   describe('getStudentSchedule', () => {
-    it('should be a function', () => {
-      expect(typeof scheduleConflictService.getStudentSchedule).toBe('function');
+    it('should return sorted weekly schedule for student', async () => {
+      const { Enrollment, CourseSection } = db;
+
+      Enrollment.findAll.mockResolvedValue([
+        {
+          section: {
+            section_number: '1',
+            semester: 'fall',
+            year: 2024,
+            schedule_json: JSON.stringify([
+              { day: 'wednesday', start_time: '13:00', end_time: '14:30' },
+              { day: 'monday', start_time: '09:00', end_time: '10:30' }
+            ]),
+            course: { code: 'CS101', name: 'Programlamaya Giriş' },
+            instructor: {
+              user: { first_name: 'Ali', last_name: 'Yılmaz' }
+            },
+            classroom: { building: 'A', room_number: '101' }
+          }
+        }
+      ]);
+
+      const schedule = await scheduleConflictService.getStudentSchedule('student-1', 'fall', 2024);
+
+      expect(schedule).toHaveLength(2);
+      // Should be sorted: Monday first, then Wednesday
+      expect(schedule[0].day.toLowerCase()).toBe('monday');
+      expect(schedule[1].day.toLowerCase()).toBe('wednesday');
+      expect(schedule[0].course.code).toBe('CS101');
+      expect(schedule[0].instructor).toBe('Ali Yılmaz');
+      expect(schedule[0].classroom).toBe('A 101');
     });
   });
 });
