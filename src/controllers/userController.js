@@ -6,6 +6,25 @@ const path = require('path');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
 
+// Türkçe karakterleri İngilizce karakterlere dönüştür
+const toAscii = (text = '') =>
+  text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'U')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 'S')
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'I')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C');
+
 /**
  * Get current user profile
  * GET /api/v1/users/me
@@ -456,7 +475,7 @@ const downloadCertificate = async (req, res) => {
     const doc = new PDFDocument({ size: 'A4', margin: 50 });
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=ogrenci_belgesi_${student.student_number}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=student_certificate_${student.student_number}.pdf`);
 
     doc.pipe(res);
 
@@ -478,17 +497,20 @@ const downloadCertificate = async (req, res) => {
       fontBold = 'Roboto-Bold';
     }
 
+    const safeName = `${toAscii(student.user.first_name)} ${toAscii(student.user.last_name)}`.trim();
+    const safeDepartment = student.department?.name ? toAscii(student.department.name) : 'Not specified';
+
     // Header
-    doc.font(fontBold).fontSize(20).text('ÜNİVERSİTE OBS SİSTEMİ', { align: 'center' });
+    doc.font(fontBold).fontSize(20).text('UNIVERSITY OBS SYSTEM', { align: 'center' });
     doc.moveDown(0.5);
-    doc.font(fontBold).fontSize(16).text('ÖĞRENCİ BELGESİ', { align: 'center', underline: true });
+    doc.font(fontBold).fontSize(16).text('STUDENT CERTIFICATE', { align: 'center', underline: true });
     doc.moveDown(0.5);
-    doc.font(fontRegular).fontSize(10).text(`Tarih: ${new Date().toLocaleDateString('tr-TR')}`, { align: 'right' });
+    doc.font(fontRegular).fontSize(10).text(`Date: ${new Date().toLocaleDateString('en-GB')}`, { align: 'right' });
     doc.moveDown(2);
 
     // Student info table
     const labelX = 60;
-    const valueX = 200;
+    const valueX = 220;
     let y = doc.y;
 
     const addRow = (label, value) => {
@@ -497,39 +519,43 @@ const downloadCertificate = async (req, res) => {
       y += 20;
     };
 
-    addRow('Öğrenci Numarası', student.student_number);
-    addRow('Adı Soyadı', `${student.user.first_name} ${student.user.last_name}`);
-    addRow('T.C. Kimlik No', `***********${student.user.citizenship_id?.slice(-2) || '**'}`);
-    addRow('Sınıfı', `${student.current_semester || 1}. Sınıf`);
-    addRow('Öğrenim Türü', 'Örgün Öğretim');
-    addRow('Durumu', student.status === 'active' ? 'Aktif' : 'Pasif');
-    addRow('Kayıt Tarihi', student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('tr-TR') : '-');
-    addRow('Genel Not Ortalaması', student.cgpa?.toFixed(2) || '0.00');
+    addRow('Student Number', student.student_number);
+    addRow('Name Surname', safeName);
+    addRow('National ID', `***********${student.user.citizenship_id?.slice(-2) || '**'}`);
+    addRow('Department', safeDepartment);
+    addRow('Class', `${student.current_semester || 1}`);
+    addRow('Education Type', 'Full-time');
+    addRow('Status', student.status === 'active' ? 'Active' : 'Inactive');
+    addRow('Enrollment Date', student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString('en-GB') : '-');
+    addRow('Cumulative GPA', student.cgpa?.toFixed(2) || '0.00');
 
     doc.moveDown(2);
 
     // Description text
     doc.font(fontRegular).fontSize(10).text(
-      `Yukarıda kimlik bilgileri yer alan ${student.user.first_name} ${student.user.last_name}, ` +
-      `üniversitemizin ${student.department?.name || 'belirtilmemiş'} bölümü öğrencisidir. ` +
-      `Bu belge, ilgili makama sunulmak üzere, öğrencinin isteği üzerine düzenlenmiştir.`,
-      labelX, doc.y, { width: 450, align: 'justify' }
+      `The student named ${safeName} is enrolled in the ${safeDepartment} department of our university. ` +
+      'This certificate has been generated electronically upon the student\'s request.',
+      labelX,
+      doc.y,
+      { width: 460, align: 'justify' }
     );
 
     // Signature area
     doc.moveDown(4);
-    doc.font(fontBold).fontSize(10).text('Öğrenci İşleri Daire Başkanlığı', { align: 'right' });
-    doc.font(fontRegular).fontSize(9).text('(Mühür / İmza)', { align: 'right' });
+    doc.font(fontBold).fontSize(10).text('Student Affairs Office', { align: 'right' });
+    doc.font(fontRegular).fontSize(9).text('(Seal / Signature)', { align: 'right' });
 
     // QR Code placeholder
     doc.rect(60, doc.y - 60, 60, 60).stroke();
-    doc.font(fontRegular).fontSize(7).text('Doğrulama Kodu', 65, doc.y - 55);
+    doc.font(fontRegular).fontSize(7).text('Verification Code', 65, doc.y - 55);
 
     // Footer
     const bottom = doc.page.height - 60;
     doc.font(fontRegular).fontSize(8).text(
-      'Bu belge elektronik ortamda üretilmiştir.',
-      50, bottom, { align: 'center', width: 500 }
+      'This document is generated digitally. No wet signature required.',
+      50,
+      bottom,
+      { align: 'center', width: 500 }
     );
 
     doc.end();

@@ -3,6 +3,25 @@ const { Student, Faculty, Enrollment, CourseSection, Course } = db;
 const gradeCalculationService = require('../services/gradeCalculationService');
 const logger = require('../utils/logger');
 
+// Türkçe karakterleri İngilizce karakterlere dönüştür
+const toAscii = (text = '') =>
+  text
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ğ/g, 'g')
+    .replace(/Ğ/g, 'G')
+    .replace(/ü/g, 'u')
+    .replace(/Ü/g, 'U')
+    .replace(/ş/g, 's')
+    .replace(/Ş/g, 'S')
+    .replace(/ı/g, 'i')
+    .replace(/İ/g, 'I')
+    .replace(/ö/g, 'o')
+    .replace(/Ö/g, 'O')
+    .replace(/ç/g, 'c')
+    .replace(/Ç/g, 'C');
+
 /**
  * Get student's grades
  * GET /api/v1/grades/my-grades
@@ -220,9 +239,9 @@ const getTranscriptPDF = async (req, res) => {
     doc.font(fontRegular);
 
     // --- HEADER ---
-    doc.font(fontBold).fontSize(20).text('ÜNİVERSİTE OBS SİSTEMİ', { align: 'center' });
+    doc.font(fontBold).fontSize(20).text('UNIVERSITY OBS SYSTEM', { align: 'center' });
     doc.moveDown(0.5);
-    doc.font(fontBold).fontSize(14).text('ÖĞRENCİ BELGESİ', { align: 'center', underline: true });
+    doc.font(fontBold).fontSize(14).text('TRANSCRIPT', { align: 'center', underline: true });
     doc.moveDown(2);
     doc.font(fontRegular);
 
@@ -234,35 +253,35 @@ const getTranscriptPDF = async (req, res) => {
     const valueX2 = 400;
     let y = doc.y;
 
-    doc.font(fontBold).text('Öğrenci No', infoX, y);
+    doc.font(fontBold).text('Student No', infoX, y);
     doc.font(fontRegular).text(': ' + transcript.student.studentNumber, valueX, y);
-    doc.font(fontBold).text('T.C. Kimlik No', infoX2, y);
+    doc.font(fontBold).text('National ID', infoX2, y);
     doc.font(fontRegular).text(': ***********' + (transcript.student.citizenshipId?.slice(-2) || 'XX'), valueX2, y);
     y += 15;
 
-    doc.font(fontBold).text('Adı Soyadı', infoX, y);
-    doc.font(fontRegular).text(': ' + tr(`${transcript.student.firstName} ${transcript.student.lastName}`), valueX, y);
-    doc.font(fontBold).text('Kayıt Tarihi', infoX2, y);
+    doc.font(fontBold).text('Name Surname', infoX, y);
+    doc.font(fontRegular).text(': ' + toAscii(`${transcript.student.firstName} ${transcript.student.lastName}`), valueX, y);
+    doc.font(fontBold).text('Enrollment Date', infoX2, y);
     doc.font(fontRegular).text(': ' + (transcript.student.enrollmentDate || '-'), valueX2, y);
     y += 15;
 
-    doc.font(fontBold).text('Bölüm', infoX, y);
-    doc.font(fontRegular).text(': ' + tr(transcript.student.department || '-'), valueX, y);
-    doc.font(fontBold).text('Öğrenim Türü', infoX2, y);
-    doc.font(fontRegular).text(': Örgün Öğretim', valueX2, y);
+    doc.font(fontBold).text('Department', infoX, y);
+    doc.font(fontRegular).text(': ' + toAscii(transcript.student.department || '-'), valueX, y);
+    doc.font(fontBold).text('Education Type', infoX2, y);
+    doc.font(fontRegular).text(': Full-time', valueX2, y);
     y += 15;
 
-    doc.font(fontBold).text('Durumu', infoX, y);
-    doc.font(fontRegular).text(': Aktif', valueX, y);
+    doc.font(fontBold).text('Status', infoX, y);
+    doc.font(fontRegular).text(': Active', valueX, y);
     y += 25;
 
     doc.y = y;
 
     // --- GRADES TABLE ---
     const semesterNames = {
-      fall: 'Güz',
-      spring: 'Bahar',
-      summer: 'Yaz',
+      fall: 'Fall',
+      spring: 'Spring',
+      summer: 'Summer',
     };
 
     const colX = { code: 50, name: 130, cred: 380, grade: 430, point: 480 };
@@ -275,7 +294,7 @@ const getTranscriptPDF = async (req, res) => {
       doc.rect(40, doc.y, 515, 20).fill('#f0f0f0');
       doc.fillColor('black');
       doc.fontSize(11).font(fontBold).text(
-        `${sem.year} - ${tr(semesterNames[sem.semester] || sem.semester)} Dönemi`,
+        `${sem.year} - ${semesterNames[sem.semester] || sem.semester} Term`,
         50, doc.y - 15
       );
       doc.moveDown(0.5);
@@ -283,11 +302,11 @@ const getTranscriptPDF = async (req, res) => {
       // Table Headers
       doc.fontSize(9).font(fontBold);
       const headersY = doc.y;
-      doc.text('Ders Kodu', colX.code, headersY);
-      doc.text('Ders Adı', colX.name, headersY);
-      doc.text('Kredi', colX.cred, headersY);
-      doc.text('Not', colX.grade, headersY);
-      doc.text('Puan', colX.point, headersY);
+      doc.text('Course Code', colX.code, headersY);
+      doc.text('Course Name', colX.name, headersY);
+      doc.text('Credits', colX.cred, headersY);
+      doc.text('Grade', colX.grade, headersY);
+      doc.text('Point', colX.point, headersY);
 
       doc.moveTo(40, doc.y + 2).lineTo(555, doc.y + 2).stroke();
       doc.moveDown(0.5);
@@ -302,7 +321,7 @@ const getTranscriptPDF = async (req, res) => {
 
         const rowY = doc.y;
         doc.text(course.code, colX.code, rowY);
-        doc.text(tr(course.name).substring(0, 45), colX.name, rowY, { width: 240 });
+        doc.text(toAscii(course.name || '').substring(0, 45), colX.name, rowY, { width: 240 });
         doc.text(String(course.credits), colX.cred, rowY);
         doc.text(course.letterGrade || '-', colX.grade, rowY);
         doc.text(course.gradePoint?.toFixed(2) || '-', colX.point, rowY);
@@ -314,7 +333,7 @@ const getTranscriptPDF = async (req, res) => {
       doc.moveDown(0.5);
       doc.fontSize(10).font(fontBold);
       doc.text(
-        `Dönem Ortalaması (GPA): ${sem.gpa.toFixed(2)}       Dönem Kredisi: ${sem.totalCredits}`,
+        `Term GPA: ${sem.gpa.toFixed(2)}       Term Credits: ${sem.totalCredits}`,
         { align: 'right' }
       );
       doc.moveDown(1.5);
@@ -325,16 +344,16 @@ const getTranscriptPDF = async (req, res) => {
     const summaryStartY = doc.y;
     doc.rect(40, summaryStartY, 515, 60).stroke();
 
-    doc.font(fontBold).fontSize(12).text('GENEL ÖZET', 50, summaryStartY + 10, { align: 'center', width: 500 });
+    doc.font(fontBold).fontSize(12).text('OVERALL SUMMARY', 50, summaryStartY + 10, { align: 'center', width: 500 });
 
     doc.font(fontRegular).fontSize(10);
-    doc.text(`Genel Not Ortalaması (CGPA): ${transcript.academic.cgpa.toFixed(2)}`, 60, summaryStartY + 35);
-    doc.text(`Toplam Kredi: ${transcript.academic.totalCredits}`, 300, summaryStartY + 35);
+    doc.text(`Cumulative GPA (CGPA): ${transcript.academic.cgpa.toFixed(2)}`, 60, summaryStartY + 35);
+    doc.text(`Total Credits: ${transcript.academic.totalCredits}`, 300, summaryStartY + 35);
 
     // --- FOOTER ---
     const bottom = doc.page.height - 50;
     doc.font(fontRegular).fontSize(8).text(
-      `Bu belge ${new Date(transcript.generatedAt).toLocaleString('tr-TR')} tarihinde oluşturulmuştur. Elektronik ortamda üretilmiştir, ıslak imza gerektirmez.`,
+      `This transcript was generated on ${new Date(transcript.generatedAt).toLocaleString('en-GB')}. It is digitally produced and does not require a wet signature.`,
       50, bottom, { align: 'center', width: 500 }
     );
 
