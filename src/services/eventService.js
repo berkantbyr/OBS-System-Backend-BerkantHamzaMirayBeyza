@@ -145,23 +145,46 @@ class EventService {
         throw new Error('Kayıt süresi dolmuş');
       }
 
-      // Check capacity
-      if (event.registered_count >= event.capacity) {
-        // TODO: Add to waitlist
-        throw new Error('Etkinlik dolu');
-      }
-
-      // Check if already registered
+      // Check if already registered or waitlisted
       const existingRegistration = await EventRegistration.findOne({
         where: {
           event_id: eventId,
           user_id: userId,
+          status: { [Op.in]: ['registered', 'waitlisted'] },
         },
         transaction,
       });
 
       if (existingRegistration) {
         throw new Error('Bu etkinliğe zaten kayıtlısınız');
+      }
+
+      // Check capacity
+      if (event.capacity && event.registered_count >= event.capacity) {
+        // Add to waitlist
+        const qrCode = qrCodeService.generateQRCode('EVENT');
+        const registration = await EventRegistration.create(
+          {
+            event_id: eventId,
+            user_id: userId,
+            registration_date: new Date(),
+            qr_code: qrCode,
+            custom_fields_json: customFields,
+            checked_in: false,
+            status: 'waitlisted',
+          },
+          { transaction }
+        );
+
+        await transaction.commit();
+
+        logger.info(`Event waitlist registration created: ${registration.id}`);
+
+        // Get user and send notification
+        const user = await User.findByPk(userId);
+        await notificationService.sendEventWaitlistNotification(user, event, registration);
+
+        return { ...registration.toJSON(), isWaitlisted: true };
       }
 
       // Generate QR code
@@ -230,14 +253,18 @@ class EventService {
         throw new Error('Etkinliğe giriş yapılmış, kayıt iptal edilemez');
       }
 
-      // Update event registered_count
-      await Event.update(
-        { registered_count: db.sequelize.literal('registered_count - 1') },
-        {
-          where: { id: eventId },
-          transaction,
-        }
-      );
+      const wasRegistered = registration.status === 'registered';
+
+      // Update event registered_count if was registered
+      if (wasRegistered) {
+        await Event.update(
+          { registered_count: db.sequelize.literal('registered_count - 1') },
+          {
+            where: { id: eventId },
+            transaction,
+          }
+        );
+      }
 
       // Delete registration
       await registration.destroy({ transaction });
@@ -246,7 +273,10 @@ class EventService {
 
       logger.info(`Event registration cancelled: ${registrationId}`);
 
-      // TODO: Notify next person in waitlist if exists
+      // If was registered and event has capacity, promote next waitlist person
+      if (wasRegistered) {
+        await this.promoteNextWaitlist(eventId);
+      }
 
       return { success: true, message: 'Kayıt iptal edildi' };
     } catch (error) {
@@ -390,6 +420,78 @@ class EventService {
       await transaction.rollback();
       logger.error('Check-in error:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Promote next person from waitlist to registered
+   * @param {string} eventId - Event ID
+   * @returns {Object|null} - Promoted registration or null
+   */
+  async promoteNextWaitlist(eventId) {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+      const event = await Event.findByPk(eventId, {
+        lock: transaction.LOCK.UPDATE,
+        transaction,
+      });
+
+      if (!event || !event.capacity || event.registered_count >= event.capacity) {
+        await transaction.rollback();
+        return null;
+      }
+
+      // Get first waitlisted registration
+      const waitlistRegistration = await EventRegistration.findOne({
+        where: {
+          event_id: eventId,
+          status: 'waitlisted',
+        },
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'first_name', 'last_name', 'email'],
+          },
+        ],
+        order: [['registration_date', 'ASC']],
+        transaction,
+      });
+
+      if (!waitlistRegistration) {
+        await transaction.rollback();
+        return null;
+      }
+
+      // Promote to registered
+      await waitlistRegistration.update(
+        { status: 'registered' },
+        { transaction }
+      );
+
+      // Update event registered_count
+      await event.update(
+        { registered_count: db.sequelize.literal('registered_count + 1') },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      logger.info(`Waitlist promotion: ${waitlistRegistration.id} for event ${eventId}`);
+
+      // Send notification to promoted user
+      await notificationService.sendEventWaitlistPromotionNotification(
+        waitlistRegistration.user,
+        event,
+        waitlistRegistration
+      );
+
+      return waitlistRegistration;
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('Promote waitlist error:', error);
+      return null;
     }
   }
 }

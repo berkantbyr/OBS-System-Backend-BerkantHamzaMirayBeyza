@@ -2,6 +2,34 @@ const mealService = require('../services/mealService');
 const logger = require('../utils/logger');
 
 /**
+ * Get cafeterias
+ * GET /api/v1/meals/cafeterias
+ */
+const getCafeterias = async (req, res) => {
+  try {
+    const db = require('../models');
+    const { Cafeteria } = db;
+
+    const cafeterias = await Cafeteria.findAll({
+      where: { is_active: true },
+      order: [['name', 'ASC']],
+    });
+
+    res.json({
+      success: true,
+      data: cafeterias,
+    });
+  } catch (error) {
+    logger.error('Get cafeterias error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kafeteryalar alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Get menus
  * GET /api/v1/meals/menus
  */
@@ -257,7 +285,90 @@ const useReservation = async (req, res) => {
   }
 };
 
+/**
+ * Transfer reservation to another student
+ * POST /api/v1/meals/reservations/:id/transfer
+ */
+const transferReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { student_number } = req.body;
+    const userId = req.user.id;
+
+    if (!student_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'Öğrenci numarası gerekli',
+      });
+    }
+
+    const result = await mealService.transferReservation(id, userId, student_number);
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (error) {
+    logger.error('Transfer reservation error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Accept transferred reservation
+ * POST /api/v1/meals/reservations/:id/accept-transfer
+ */
+const acceptTransfer = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const result = await mealService.acceptTransfer(id, userId);
+
+    res.json({
+      success: true,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (error) {
+    logger.error('Accept transfer error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * Get pending transfers for current user
+ * GET /api/v1/meals/reservations/pending-transfers
+ */
+const getPendingTransfers = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const transfers = await mealService.getPendingTransfers(userId);
+
+    res.json({
+      success: true,
+      data: transfers,
+    });
+  } catch (error) {
+    logger.error('Get pending transfers error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Bekleyen transferler alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
+  getCafeterias,
   getMenus,
   getMenuById,
   createMenu,
@@ -268,5 +379,8 @@ module.exports = {
   getMyReservations,
   getReservationByQR,
   useReservation,
+  transferReservation,
+  acceptTransfer,
+  getPendingTransfers,
 };
 

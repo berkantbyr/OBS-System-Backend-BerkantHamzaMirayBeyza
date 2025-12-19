@@ -822,7 +822,7 @@ const getActiveSessions = async (req, res) => {
 };
 
 /**
- * Regenerate QR code for session (faculty) - 15 second refresh
+ * Regenerate QR code for session (faculty) - 5 minute refresh
  * POST /api/v1/attendance/sessions/:id/regenerate-qr
  */
 const regenerateQRCode = async (req, res) => {
@@ -857,7 +857,7 @@ const regenerateQRCode = async (req, res) => {
 
     // Generate new QR code
     const newQRCode = `ATT-${uuidv4().substring(0, 8).toUpperCase()}-${Date.now()}`;
-    const qrExpiresAt = new Date(Date.now() + 15000); // 15 seconds from now
+    const qrExpiresAt = new Date(Date.now() + 300000); // 5 minutes from now (300000 ms)
 
     await session.update({
       qr_code: newQRCode,
@@ -871,7 +871,7 @@ const regenerateQRCode = async (req, res) => {
       data: {
         qr_code: newQRCode,
         qr_expires_at: qrExpiresAt,
-        expires_in_seconds: 15,
+        expires_in_seconds: 300, // 5 minutes
       },
     });
   } catch (error) {

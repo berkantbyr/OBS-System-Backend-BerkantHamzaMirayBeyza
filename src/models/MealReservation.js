@@ -44,6 +44,26 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
     },
+    transferred_to_user_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    transferred_from_user_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+    },
+    transfer_status: {
+      type: DataTypes.STRING(20), // pending, accepted, rejected, cancelled
+      allowNull: true,
+    },
+    transfer_student_number: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+    },
+    transferred_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   }, {
     tableName: 'meal_reservations',
     timestamps: true,
@@ -56,6 +76,12 @@ module.exports = (sequelize, DataTypes) => {
       {
         fields: ['qr_code'],
         unique: true,
+      },
+      {
+        fields: ['transferred_to_user_id'],
+      },
+      {
+        fields: ['transfer_status'],
       },
     ],
   });

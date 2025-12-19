@@ -451,6 +451,293 @@ class MealService {
       throw error;
     }
   }
+
+  /**
+   * Transfer meal reservation to another student
+   * @param {string} reservationId - Reservation ID
+   * @param {string} fromUserId - Current user ID
+   * @param {string} studentNumber - Student number to transfer to
+   * @returns {Object} - Transfer result
+   */
+  async transferReservation(reservationId, fromUserId, studentNumber) {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+      // Get reservation
+      const reservation = await MealReservation.findOne({
+        where: {
+          id: reservationId,
+          user_id: fromUserId,
+          status: 'reserved',
+        },
+        include: [
+          {
+            model: MealMenu,
+            as: 'menu',
+          },
+        ],
+        transaction,
+      });
+
+      if (!reservation) {
+        throw new Error('Rezervasyon bulunamadı veya devredilemez durumda');
+      }
+
+      // Check if reservation date is today or future
+      const today = new Date().toISOString().split('T')[0];
+      if (reservation.date < today) {
+        throw new Error('Geçmiş tarihli rezervasyonlar devredilemez');
+      }
+
+      // Find student by student number
+      const targetStudent = await Student.findOne({
+        where: { student_number: studentNumber },
+        include: [{ model: User, as: 'user' }],
+        transaction,
+      });
+
+      if (!targetStudent) {
+        throw new Error('Öğrenci numarası bulunamadı');
+      }
+
+      const targetUserId = targetStudent.user_id;
+
+      // Check if trying to transfer to self
+      if (targetUserId === fromUserId) {
+        throw new Error('Rezervasyonu kendinize devredemezsiniz');
+      }
+
+      // Check if target student already has reservation for same meal
+      const existingReservation = await MealReservation.findOne({
+        where: {
+          user_id: targetUserId,
+          date: reservation.date,
+          meal_type: reservation.meal_type,
+          status: { [Op.in]: ['reserved', 'used'] },
+        },
+        transaction,
+      });
+
+      if (existingReservation) {
+        throw new Error('Alıcı öğrencinin bu öğün için zaten rezervasyonu var');
+      }
+
+      // Update reservation with transfer info
+      await reservation.update(
+        {
+          transferred_to_user_id: targetUserId,
+          transferred_from_user_id: fromUserId,
+          transfer_status: 'pending',
+          transfer_student_number: studentNumber,
+          transferred_at: new Date(),
+        },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      logger.info(`Reservation transfer initiated: ${reservationId} to ${targetUserId}`);
+
+      // Send notification to target student
+      await notificationService.sendMealTransferNotification(
+        targetStudent.user,
+        reservation,
+        fromUserId
+      );
+
+      return {
+        success: true,
+        message: 'Rezervasyon devri başlatıldı. Alıcı öğrenci onay bekliyor.',
+        data: reservation,
+      };
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('Transfer reservation error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Accept transferred meal reservation
+   * @param {string} reservationId - Reservation ID
+   * @param {string} toUserId - User ID accepting the transfer
+   * @returns {Object} - Acceptance result
+   */
+  async acceptTransfer(reservationId, toUserId) {
+    const transaction = await db.sequelize.transaction();
+
+    try {
+      // Get reservation
+      const reservation = await MealReservation.findOne({
+        where: {
+          id: reservationId,
+          transferred_to_user_id: toUserId,
+          transfer_status: 'pending',
+          status: 'reserved',
+        },
+        include: [
+          {
+            model: MealMenu,
+            as: 'menu',
+          },
+          {
+            model: User,
+            as: 'user',
+            include: [{ model: Student, as: 'student' }],
+          },
+        ],
+        transaction,
+      });
+
+      if (!reservation) {
+        throw new Error('Bekleyen transfer bulunamadı');
+      }
+
+      // Check if reservation date is still valid
+      const today = new Date().toISOString().split('T')[0];
+      if (reservation.date < today) {
+        throw new Error('Bu rezervasyonun tarihi geçmiş');
+      }
+
+      // Check if target student already has reservation for same meal
+      const existingReservation = await MealReservation.findOne({
+        where: {
+          user_id: toUserId,
+          date: reservation.date,
+          meal_type: reservation.meal_type,
+          status: { [Op.in]: ['reserved', 'used'] },
+          id: { [Op.ne]: reservationId },
+        },
+        transaction,
+      });
+
+      if (existingReservation) {
+        throw new Error('Bu öğün için zaten rezervasyonunuz var');
+      }
+
+      // Get target user and check if scholarship
+      const targetUser = await User.findByPk(toUserId, {
+        include: [{ model: Student, as: 'student' }],
+        transaction,
+      });
+
+      const isScholarship = targetUser.student?.has_scholarship || false;
+
+      // Check daily quota for scholarship students
+      if (isScholarship) {
+        const todayReservations = await MealReservation.count({
+          where: {
+            user_id: toUserId,
+            date: reservation.date,
+            status: { [Op.in]: ['reserved', 'used'] },
+            id: { [Op.ne]: reservationId },
+          },
+          transaction,
+        });
+
+        if (todayReservations >= this.DAILY_MEAL_QUOTA) {
+          throw new Error(`Günlük yemek kotanız doldu (Maksimum ${this.DAILY_MEAL_QUOTA} öğün/gün)`);
+        }
+      } else {
+        // Check wallet balance for paid students
+        const wallet = await walletService.getWalletByUserId(toUserId, transaction);
+        const mealPrice = reservation.amount || 0;
+
+        if (wallet.balance < mealPrice) {
+          throw new Error(`Yetersiz bakiye. Gerekli: ${mealPrice} TRY, Mevcut: ${wallet.balance} TRY`);
+        }
+
+        // Create pending transaction
+        await walletService.createPendingTransaction(
+          wallet.id,
+          mealPrice,
+          'meal_reservation_transfer',
+          reservation.menu_id,
+          `Yemek rezervasyonu devri - ${reservation.meal_type}`,
+          transaction
+        );
+      }
+
+      // Transfer reservation to new user
+      await reservation.update(
+        {
+          user_id: toUserId,
+          transfer_status: 'accepted',
+          amount: isScholarship ? 0 : reservation.amount,
+        },
+        { transaction }
+      );
+
+      // If original user was paid, refund them
+      if (reservation.amount > 0 && reservation.user.student && !reservation.user.student.has_scholarship) {
+        await walletService.refundTransaction(
+          reservation.transferred_from_user_id,
+          reservation.amount,
+          'meal_reservation_transfer',
+          reservationId,
+          `Yemek rezervasyonu devri - ${reservation.id}`,
+          transaction
+        );
+      }
+
+      await transaction.commit();
+
+      logger.info(`Reservation transfer accepted: ${reservationId} by ${toUserId}`);
+
+      // Send notification to original user
+      await notificationService.sendMealTransferAcceptedNotification(
+        reservation.user,
+        reservation,
+        targetUser
+      );
+
+      return {
+        success: true,
+        message: 'Rezervasyon devri kabul edildi',
+        data: reservation,
+      };
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('Accept transfer error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get pending transfers for a user
+   * @param {string} userId - User ID
+   * @returns {Array} - Array of pending transfers
+   */
+  async getPendingTransfers(userId) {
+    const transfers = await MealReservation.findAll({
+      where: {
+        transferred_to_user_id: userId,
+        transfer_status: 'pending',
+        status: 'reserved',
+      },
+      include: [
+        {
+          model: MealMenu,
+          as: 'menu',
+          include: [{ model: Cafeteria, as: 'cafeteria' }],
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'first_name', 'last_name', 'email'],
+          include: [{ model: Student, as: 'student', attributes: ['student_number'] }],
+        },
+        {
+          model: Cafeteria,
+          as: 'cafeteria',
+          attributes: ['id', 'name', 'location'],
+        },
+      ],
+      order: [['transferred_at', 'DESC']],
+    });
+
+    return transfers;
+  }
 }
 
 module.exports = new MealService();
