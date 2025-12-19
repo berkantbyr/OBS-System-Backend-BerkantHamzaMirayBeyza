@@ -44,6 +44,17 @@ db.ExcuseRequest = require('./ExcuseRequest')(sequelize, Sequelize.DataTypes);
 db.AcademicCalendar = require('./AcademicCalendar')(sequelize, Sequelize.DataTypes);
 db.Announcement = require('./Announcement')(sequelize, Sequelize.DataTypes);
 
+// Part 4 - Meal, Wallet, Events & Scheduling
+db.Cafeteria = require('./Cafeteria')(sequelize, Sequelize.DataTypes);
+db.MealMenu = require('./MealMenu')(sequelize, Sequelize.DataTypes);
+db.MealReservation = require('./MealReservation')(sequelize, Sequelize.DataTypes);
+db.Wallet = require('./Wallet')(sequelize, Sequelize.DataTypes);
+db.Transaction = require('./Transaction')(sequelize, Sequelize.DataTypes);
+db.Event = require('./Event')(sequelize, Sequelize.DataTypes);
+db.EventRegistration = require('./EventRegistration')(sequelize, Sequelize.DataTypes);
+db.Schedule = require('./Schedule')(sequelize, Sequelize.DataTypes);
+db.Reservation = require('./Reservation')(sequelize, Sequelize.DataTypes);
+
 // ============================================
 // Define associations
 // ============================================
@@ -302,6 +313,141 @@ db.Announcement.belongsTo(db.User, {
   foreignKey: 'author_id',
   as: 'author',
 });
+
+// ============================================
+// Part 4 - Meal, Wallet, Events & Scheduling Associations
+// ============================================
+
+// User - Wallet (One-to-One)
+db.User.hasOne(db.Wallet, {
+  foreignKey: 'user_id',
+  as: 'wallet',
+  onDelete: 'CASCADE',
+});
+db.Wallet.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// Wallet - Transaction (One-to-Many)
+db.Wallet.hasMany(db.Transaction, {
+  foreignKey: 'wallet_id',
+  as: 'transactions',
+  onDelete: 'CASCADE',
+});
+db.Transaction.belongsTo(db.Wallet, {
+  foreignKey: 'wallet_id',
+  as: 'wallet',
+});
+
+// Cafeteria - MealMenu (One-to-Many)
+db.Cafeteria.hasMany(db.MealMenu, {
+  foreignKey: 'cafeteria_id',
+  as: 'menus',
+  onDelete: 'CASCADE',
+});
+db.MealMenu.belongsTo(db.Cafeteria, {
+  foreignKey: 'cafeteria_id',
+  as: 'cafeteria',
+});
+
+// User - MealReservation (One-to-Many)
+db.User.hasMany(db.MealReservation, {
+  foreignKey: 'user_id',
+  as: 'mealReservations',
+  onDelete: 'CASCADE',
+});
+db.MealReservation.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// MealMenu - MealReservation (One-to-Many)
+db.MealMenu.hasMany(db.MealReservation, {
+  foreignKey: 'menu_id',
+  as: 'reservations',
+  onDelete: 'CASCADE',
+});
+db.MealReservation.belongsTo(db.MealMenu, {
+  foreignKey: 'menu_id',
+  as: 'menu',
+});
+
+// Cafeteria - MealReservation (One-to-Many)
+db.Cafeteria.hasMany(db.MealReservation, {
+  foreignKey: 'cafeteria_id',
+  as: 'reservations',
+});
+db.MealReservation.belongsTo(db.Cafeteria, {
+  foreignKey: 'cafeteria_id',
+  as: 'cafeteria',
+});
+
+// Events - EventRegistrations (One-to-Many)
+db.Event.hasMany(db.EventRegistration, {
+  foreignKey: 'event_id',
+  as: 'registrations',
+  onDelete: 'CASCADE',
+});
+db.EventRegistration.belongsTo(db.Event, {
+  foreignKey: 'event_id',
+  as: 'event',
+});
+
+// User - EventRegistrations (One-to-Many)
+db.User.hasMany(db.EventRegistration, {
+  foreignKey: 'user_id',
+  as: 'eventRegistrations',
+  onDelete: 'CASCADE',
+});
+db.EventRegistration.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// CourseSection - Schedule (One-to-Many)
+db.CourseSection.hasMany(db.Schedule, {
+  foreignKey: 'section_id',
+  as: 'schedules',
+  onDelete: 'CASCADE',
+});
+db.Schedule.belongsTo(db.CourseSection, {
+  foreignKey: 'section_id',
+  as: 'section',
+});
+
+// Classroom - Schedule (One-to-Many)
+db.Classroom.hasMany(db.Schedule, {
+  foreignKey: 'classroom_id',
+  as: 'schedules',
+});
+db.Schedule.belongsTo(db.Classroom, {
+  foreignKey: 'classroom_id',
+  as: 'classroom',
+});
+
+// Classroom - Reservation (One-to-Many)
+db.Classroom.hasMany(db.Reservation, {
+  foreignKey: 'classroom_id',
+  as: 'reservations',
+  onDelete: 'CASCADE',
+});
+db.Reservation.belongsTo(db.Classroom, {
+  foreignKey: 'classroom_id',
+  as: 'classroom',
+});
+
+// User - Reservation (One-to-Many)
+db.User.hasMany(db.Reservation, {
+  foreignKey: 'user_id',
+  as: 'reservations',
+  onDelete: 'CASCADE',
+});
+db.Reservation.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;

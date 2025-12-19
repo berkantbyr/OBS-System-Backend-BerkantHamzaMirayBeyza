@@ -18,6 +18,13 @@ const announcementRoutes = require('./announcementRoutes');
 const calendarRoutes = require('./calendarRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 
+// Part 4 - Meal, Wallet, Event, Scheduling Routes
+const mealRoutes = require('./mealRoutes');
+const walletRoutes = require('./walletRoutes');
+const eventRoutes = require('./eventRoutes');
+const schedulingRoutes = require('./schedulingRoutes');
+const reservationRoutes = require('./reservationRoutes');
+
 // Mount routes
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -34,6 +41,13 @@ router.use('/classrooms', classroomRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/dashboard', dashboardRoutes);
+
+// Part 4 Routes
+router.use('/meals', mealRoutes);
+router.use('/wallet', walletRoutes);
+router.use('/events', eventRoutes);
+router.use('/scheduling', schedulingRoutes);
+router.use('/reservations', reservationRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {
@@ -53,6 +67,10 @@ router.get('/health', (req, res) => {
       campusIP: true,
       announcements: true,
       academicCalendar: true,
+      meals: true,
+      wallet: true,
+      events: true,
+      scheduling: true,
     },
   });
 });
