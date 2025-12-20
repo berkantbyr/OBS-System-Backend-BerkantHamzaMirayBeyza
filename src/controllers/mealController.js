@@ -30,6 +30,48 @@ const getCafeterias = async (req, res) => {
 };
 
 /**
+ * Seed cafeterias (admin only)
+ * POST /api/v1/meals/cafeterias/seed
+ */
+const seedCafeterias = async (req, res) => {
+  try {
+    const db = require('../models');
+    const { Cafeteria } = db;
+
+    const defaultCafeterias = [
+      { name: 'Batı Kampüs', location: 'Batı Kampüs Kafeteryası', capacity: 500, is_active: true },
+      { name: 'Doğu Kampüs', location: 'Doğu Kampüs Kafeteryası', capacity: 500, is_active: true },
+      { name: 'Kuzey Kampüs', location: 'Kuzey Kampüs Kafeteryası', capacity: 500, is_active: true },
+      { name: 'Güney Kampüs', location: 'Güney Kampüs Kafeteryası', capacity: 500, is_active: true },
+    ];
+
+    const createdCafeterias = [];
+    for (const cafeteriaData of defaultCafeterias) {
+      const [cafeteria, created] = await Cafeteria.findOrCreate({
+        where: { name: cafeteriaData.name },
+        defaults: cafeteriaData,
+      });
+      if (created) {
+        createdCafeterias.push(cafeteria);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${createdCafeterias.length} kafeterya oluşturuldu`,
+      data: createdCafeterias,
+    });
+  } catch (error) {
+    logger.error('Seed cafeterias error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Kafeteryalar oluşturulurken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Get menus
  * GET /api/v1/meals/menus
  */
@@ -369,6 +411,7 @@ const getPendingTransfers = async (req, res) => {
 
 module.exports = {
   getCafeterias,
+  seedCafeterias,
   getMenus,
   getMenuById,
   createMenu,

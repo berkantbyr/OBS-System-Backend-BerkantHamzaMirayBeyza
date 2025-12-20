@@ -10,6 +10,7 @@ const mealController = require('../controllers/mealController');
 
 // Cafeteria routes
 router.get('/cafeterias', authenticate, mealController.getCafeterias);
+router.post('/cafeterias/seed', authenticate, authorize('admin'), mealController.seedCafeterias);
 
 // Menu routes
 router.get('/menus', authenticate, mealController.getMenus);
