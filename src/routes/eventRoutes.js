@@ -10,17 +10,19 @@ const eventController = require('../controllers/eventController');
 
 // Event routes
 router.get('/', authenticate, eventController.getEvents);
-router.get('/:id', authenticate, eventController.getEventById);
 router.post('/', authenticate, authorize('admin', 'event_manager'), eventController.createEvent);
-router.put('/:id', authenticate, authorize('admin', 'event_manager'), eventController.updateEvent);
-router.delete('/:id', authenticate, authorize('admin', 'event_manager'), eventController.deleteEvent);
 
-// Registration routes
-router.post('/:id/register', authenticate, eventController.registerForEvent);
+// Registration routes (must be before /:id routes to avoid route conflicts)
 router.get('/my-registrations', authenticate, eventController.getMyEventRegistrations);
 router.get('/registrations/qr/:qrCode', authenticate, authorize('admin', 'event_manager'), eventController.getRegistrationByQR);
-router.delete('/:eventId/registrations/:regId', authenticate, eventController.cancelRegistration);
+
+// Event detail routes (must be after specific routes)
+router.get('/:id', authenticate, eventController.getEventById);
+router.put('/:id', authenticate, authorize('admin', 'event_manager'), eventController.updateEvent);
+router.delete('/:id', authenticate, authorize('admin', 'event_manager'), eventController.deleteEvent);
+router.post('/:id/register', authenticate, eventController.registerForEvent);
 router.get('/:id/registrations', authenticate, authorize('admin', 'event_manager'), eventController.getEventRegistrations);
+router.delete('/:eventId/registrations/:regId', authenticate, eventController.cancelRegistration);
 router.post('/:eventId/registrations/:regId/checkin', authenticate, authorize('admin', 'event_manager'), eventController.checkIn);
 
 module.exports = router;

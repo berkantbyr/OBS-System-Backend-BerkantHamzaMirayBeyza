@@ -18,9 +18,9 @@ const announcementRoutes = require('./announcementRoutes');
 const calendarRoutes = require('./calendarRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 
-// Part 4 - Meal, Wallet, Event, Scheduling Routes
+// Part 4 - Meal, Event, Scheduling Routes
 const mealRoutes = require('./mealRoutes');
-const walletRoutes = require('./walletRoutes');
+// const walletRoutes = require('./walletRoutes'); // Wallet system removed - all reservations are free
 const eventRoutes = require('./eventRoutes');
 const schedulingRoutes = require('./schedulingRoutes');
 const reservationRoutes = require('./reservationRoutes');
@@ -44,7 +44,7 @@ router.use('/dashboard', dashboardRoutes);
 
 // Part 4 Routes
 router.use('/meals', mealRoutes);
-router.use('/wallet', walletRoutes);
+// router.use('/wallet', walletRoutes); // Wallet system removed - all reservations are free
 router.use('/events', eventRoutes);
 router.use('/scheduling', schedulingRoutes);
 router.use('/reservations', reservationRoutes);
@@ -68,7 +68,7 @@ router.get('/health', (req, res) => {
       announcements: true,
       academicCalendar: true,
       meals: true,
-      wallet: true,
+      wallet: false, // Wallet system removed - all reservations are free
       events: true,
       scheduling: true,
     },

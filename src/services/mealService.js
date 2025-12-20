@@ -2,7 +2,6 @@ const db = require('../models');
 const { MealMenu, MealReservation, Cafeteria, User, Student } = db;
 const qrCodeService = require('./qrCodeService');
 const notificationService = require('./notificationService');
-const walletService = require('./walletService');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
@@ -10,11 +9,6 @@ const { Op } = require('sequelize');
  * MealService - Handles meal menu and reservation logic
  */
 class MealService {
-  /**
-   * Daily meal quota for scholarship students
-   */
-  DAILY_MEAL_QUOTA = 2;
-
   /**
    * Minimum hours before meal time to cancel reservation
    */
@@ -152,58 +146,21 @@ class MealService {
         throw new Error('Menü bulunamadı veya yayınlanmamış');
       }
 
-      // Get user and check if student
-      const user = await User.findByPk(userId, {
-        include: [{ model: Student, as: 'student' }],
-        transaction,
-      });
+      // Get user
+      const user = await User.findByPk(userId, { transaction });
 
       if (!user) {
         throw new Error('Kullanıcı bulunamadı');
       }
 
-      const isScholarship = user.student?.has_scholarship || false;
+      logger.info(`Creating reservation - User: ${userId}, Date: ${date}, Meal: ${meal_type}`);
 
-      logger.info(`Creating reservation - User: ${userId}, Scholarship: ${isScholarship}, Date: ${date}, Meal: ${meal_type}`);
-
-      // Check daily quota for scholarship students
-      if (isScholarship) {
-        const todayReservations = await MealReservation.count({
-          where: {
-            user_id: userId,
-            date: date,
-            status: { [Op.in]: ['reserved', 'used'] },
-          },
-          transaction,
-        });
-
-        if (todayReservations >= this.DAILY_MEAL_QUOTA) {
-          throw new Error(`Günlük yemek kotanız doldu (Maksimum ${this.DAILY_MEAL_QUOTA} öğün/gün)`);
-        }
-      } else {
-        // Check wallet balance for paid students
-        const wallet = await walletService.getWalletByUserId(userId, transaction);
-        const mealPrice = menu.price || 0; // Assume menu has price field or get from cafeteria
-
-        if (wallet.balance < mealPrice) {
-          throw new Error(`Yetersiz bakiye. Gerekli: ${mealPrice} TRY, Mevcut: ${wallet.balance} TRY`);
-        }
-
-        // Create pending transaction (will deduct on use)
-        await walletService.createPendingTransaction(
-          wallet.id,
-          mealPrice,
-          'meal_reservation',
-          menu_id,
-          `Yemek rezervasyonu - ${meal_type}`,
-          transaction
-        );
-      }
+      // All reservations are free - no wallet checks needed
 
       // Generate QR code
       const qrCode = qrCodeService.generateQRCode('MEAL');
 
-      // Create reservation
+      // Create reservation (all reservations are free)
       const reservation = await MealReservation.create(
         {
           user_id: userId,
@@ -211,7 +168,7 @@ class MealService {
           cafeteria_id: cafeteria_id,
           meal_type: meal_type,
           date: date,
-          amount: isScholarship ? 0 : (menu.price || 0),
+          amount: 0, // All reservations are free
           qr_code: qrCode,
           status: 'reserved',
         },
@@ -265,19 +222,7 @@ class MealService {
         throw new Error(`Rezervasyonu iptal etmek için en az ${this.MIN_CANCEL_HOURS} saat önceden iptal etmeniz gerekir`);
       }
 
-      // If paid, refund to wallet
-      if (reservation.amount > 0) {
-        await walletService.refundTransaction(
-          reservation.user_id,
-          reservation.amount,
-          'meal_reservation_cancel',
-          reservationId,
-          `Yemek rezervasyonu iptali - ${reservation.id}`,
-          transaction
-        );
-      }
-
-      // Update reservation status
+      // Update reservation status (no refund needed as all reservations are free)
       await reservation.update({ status: 'cancelled' }, { transaction });
 
       await transaction.commit();
@@ -420,7 +365,7 @@ class MealService {
         throw new Error('Bu rezervasyon zaten kullanılmış');
       }
 
-      // Mark as used
+      // Mark as used (no wallet deduction needed as all reservations are free)
       await reservation.update(
         {
           status: 'used',
@@ -428,17 +373,6 @@ class MealService {
         },
         { transaction }
       );
-
-      // If paid, complete transaction (deduct from wallet)
-      if (reservation.amount > 0) {
-        await walletService.completePendingTransaction(
-          reservation.user_id,
-          reservation.amount,
-          'meal_reservation',
-          reservation.menu_id,
-          transaction
-        );
-      }
 
       await transaction.commit();
 
@@ -621,64 +555,15 @@ class MealService {
         transaction,
       });
 
-      const isScholarship = targetUser.student?.has_scholarship || false;
-
-      // Check daily quota for scholarship students
-      if (isScholarship) {
-        const todayReservations = await MealReservation.count({
-          where: {
-            user_id: toUserId,
-            date: reservation.date,
-            status: { [Op.in]: ['reserved', 'used'] },
-            id: { [Op.ne]: reservationId },
-          },
-          transaction,
-        });
-
-        if (todayReservations >= this.DAILY_MEAL_QUOTA) {
-          throw new Error(`Günlük yemek kotanız doldu (Maksimum ${this.DAILY_MEAL_QUOTA} öğün/gün)`);
-        }
-      } else {
-        // Check wallet balance for paid students
-        const wallet = await walletService.getWalletByUserId(toUserId, transaction);
-        const mealPrice = reservation.amount || 0;
-
-        if (wallet.balance < mealPrice) {
-          throw new Error(`Yetersiz bakiye. Gerekli: ${mealPrice} TRY, Mevcut: ${wallet.balance} TRY`);
-        }
-
-        // Create pending transaction
-        await walletService.createPendingTransaction(
-          wallet.id,
-          mealPrice,
-          'meal_reservation_transfer',
-          reservation.menu_id,
-          `Yemek rezervasyonu devri - ${reservation.meal_type}`,
-          transaction
-        );
-      }
-
-      // Transfer reservation to new user
+      // Transfer reservation to new user (all reservations are free)
       await reservation.update(
         {
           user_id: toUserId,
           transfer_status: 'accepted',
-          amount: isScholarship ? 0 : reservation.amount,
+          amount: 0, // All reservations are free
         },
         { transaction }
       );
-
-      // If original user was paid, refund them
-      if (reservation.amount > 0 && reservation.user.student && !reservation.user.student.has_scholarship) {
-        await walletService.refundTransaction(
-          reservation.transferred_from_user_id,
-          reservation.amount,
-          'meal_reservation_transfer',
-          reservationId,
-          `Yemek rezervasyonu devri - ${reservation.id}`,
-          transaction
-        );
-      }
 
       await transaction.commit();
 
