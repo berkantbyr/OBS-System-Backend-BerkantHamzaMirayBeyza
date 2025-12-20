@@ -176,11 +176,11 @@ class NotificationService {
             </div>
             <div class="content">
               <h2>Merhaba ${user.first_name},</h2>
-              <p>Cüzdanınıza <strong>${amount} TRY</strong> yüklendi.</p>
+              <p>Cüzdanınıza <strong>${amount} ₺</strong> yüklendi.</p>
               
               <div class="balance-box">
                 <p style="margin: 0 0 10px 0; color: #666;">Yeni Bakiye:</p>
-                <div class="balance">${newBalance.toFixed(2)} TRY</div>
+                <div class="balance">${newBalance.toFixed(2)} ₺</div>
               </div>
             </div>
             <div class="footer">
