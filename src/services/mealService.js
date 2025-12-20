@@ -92,9 +92,34 @@ class MealService {
     }
 
     // Validate cafeteria exists
-    const cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+    let cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
     if (!cafeteria) {
-      throw new Error('Geçersiz kafeterya');
+      // If cafeteria doesn't exist, try to seed default cafeterias
+      logger.warn(`Cafeteria ${menuData.cafeteria_id} not found, attempting to seed default cafeterias`);
+      
+      const defaultCafeterias = [
+        { name: 'Batı Kampüs', location: 'Batı Kampüs Kafeteryası', capacity: 500, is_active: true },
+        { name: 'Doğu Kampüs', location: 'Doğu Kampüs Kafeteryası', capacity: 500, is_active: true },
+        { name: 'Kuzey Kampüs', location: 'Kuzey Kampüs Kafeteryası', capacity: 500, is_active: true },
+        { name: 'Güney Kampüs', location: 'Güney Kampüs Kafeteryası', capacity: 500, is_active: true },
+      ];
+
+      for (const cafeteriaData of defaultCafeterias) {
+        await Cafeteria.findOrCreate({
+          where: { name: cafeteriaData.name },
+          defaults: cafeteriaData,
+        });
+      }
+
+      // Try to find the cafeteria again
+      cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+      if (!cafeteria) {
+        // If still not found, check if it's a name match
+        const allCafeterias = await Cafeteria.findAll({ where: { is_active: true } });
+        logger.error(`Cafeteria ${menuData.cafeteria_id} not found. Available cafeterias:`, 
+          allCafeterias.map(c => ({ id: c.id, name: c.name })));
+        throw new Error('Geçersiz kafeterya. Lütfen geçerli bir kafeterya seçin.');
+      }
     }
 
     // Clean nutrition_json - remove empty strings and convert to numbers where appropriate
