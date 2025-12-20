@@ -70,8 +70,8 @@ class EventService {
       location: eventData.location,
       capacity: eventData.capacity,
       registration_deadline: eventData.registration_deadline,
-      is_paid: eventData.is_paid || false,
-      price: eventData.price || 0,
+      is_paid: false, // Etkinlikler her zaman ücretsiz
+      price: 0, // Etkinlikler her zaman ücretsiz
       status: eventData.status || 'published',
     });
 
