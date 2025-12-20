@@ -95,7 +95,33 @@ class MealService {
       }
 
       // Validate cafeteria exists
-      let cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+      // First check if it's a UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      let cafeteria = null;
+      let actualCafeteriaId = menuData.cafeteria_id;
+
+      if (uuidRegex.test(menuData.cafeteria_id)) {
+        // It's a UUID, try to find by ID
+        cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+      } else {
+        // It's not a UUID, might be a name - try to find by name
+        logger.warn(`Cafeteria ID is not a UUID format: ${menuData.cafeteria_id}, trying to find by name`);
+        const nameMapping = {
+          'batı_kampüs': 'Batı Kampüs',
+          'doğu_kampüs': 'Doğu Kampüs',
+          'kuzey_kampüs': 'Kuzey Kampüs',
+          'güney_kampüs': 'Güney Kampüs',
+        };
+        const cafeteriaName = nameMapping[menuData.cafeteria_id.toLowerCase()] || menuData.cafeteria_id;
+        cafeteria = await Cafeteria.findOne({ 
+          where: { name: cafeteriaName, is_active: true } 
+        });
+        if (cafeteria) {
+          actualCafeteriaId = cafeteria.id;
+          logger.info(`Found cafeteria by name: ${cafeteriaName} -> ${cafeteria.id}`);
+        }
+      }
+
       if (!cafeteria) {
         // If cafeteria doesn't exist, try to seed default cafeterias
         logger.warn(`Cafeteria ${menuData.cafeteria_id} not found, attempting to seed default cafeterias`);
@@ -109,17 +135,33 @@ class MealService {
 
         for (const cafeteriaData of defaultCafeterias) {
           try {
-            await Cafeteria.findOrCreate({
+            const [createdCafeteria] = await Cafeteria.findOrCreate({
               where: { name: cafeteriaData.name },
               defaults: cafeteriaData,
             });
+            // If we were looking for this one by name, use its ID
+            const nameMapping = {
+              'batı_kampüs': 'Batı Kampüs',
+              'doğu_kampüs': 'Doğu Kampüs',
+              'kuzey_kampüs': 'Kuzey Kampüs',
+              'güney_kampüs': 'Güney Kampüs',
+            };
+            const cafeteriaName = nameMapping[menuData.cafeteria_id.toLowerCase()];
+            if (cafeteriaName === createdCafeteria.name) {
+              actualCafeteriaId = createdCafeteria.id;
+              cafeteria = createdCafeteria;
+              logger.info(`Matched and found cafeteria: ${cafeteriaName} -> ${createdCafeteria.id}`);
+            }
           } catch (seedError) {
             logger.error('Error seeding cafeteria:', cafeteriaData.name, seedError);
           }
         }
 
-        // Try to find the cafeteria again
-        cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+        // If still not found, try to find by the original ID again
+        if (!cafeteria && uuidRegex.test(menuData.cafeteria_id)) {
+          cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+        }
+
         if (!cafeteria) {
           // If still not found, list all available cafeterias
           const allCafeterias = await Cafeteria.findAll({ where: { is_active: true } });
@@ -128,6 +170,9 @@ class MealService {
           throw new Error(`Geçersiz kafeterya ID: ${menuData.cafeteria_id}. Lütfen geçerli bir kafeterya seçin.`);
         }
       }
+
+      // Use the actual UUID
+      menuData.cafeteria_id = actualCafeteriaId;
 
       logger.info('Cafeteria found:', { id: cafeteria.id, name: cafeteria.name });
 
