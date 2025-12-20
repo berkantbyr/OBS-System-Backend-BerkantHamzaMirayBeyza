@@ -78,85 +78,135 @@ class MealService {
    * @returns {Object} - Created menu
    */
   async createMenu(menuData) {
-    // Validate required fields
-    if (!menuData.cafeteria_id) {
-      throw new Error('Kafeterya seçilmelidir');
-    }
+    try {
+      logger.info('createMenu called with data:', JSON.stringify(menuData, null, 2));
 
-    if (!menuData.date) {
-      throw new Error('Tarih seçilmelidir');
-    }
-
-    if (!menuData.meal_type) {
-      throw new Error('Öğün tipi seçilmelidir');
-    }
-
-    // Validate cafeteria exists
-    let cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
-    if (!cafeteria) {
-      // If cafeteria doesn't exist, try to seed default cafeterias
-      logger.warn(`Cafeteria ${menuData.cafeteria_id} not found, attempting to seed default cafeterias`);
-      
-      const defaultCafeterias = [
-        { name: 'Batı Kampüs', location: 'Batı Kampüs Kafeteryası', capacity: 500, is_active: true },
-        { name: 'Doğu Kampüs', location: 'Doğu Kampüs Kafeteryası', capacity: 500, is_active: true },
-        { name: 'Kuzey Kampüs', location: 'Kuzey Kampüs Kafeteryası', capacity: 500, is_active: true },
-        { name: 'Güney Kampüs', location: 'Güney Kampüs Kafeteryası', capacity: 500, is_active: true },
-      ];
-
-      for (const cafeteriaData of defaultCafeterias) {
-        await Cafeteria.findOrCreate({
-          where: { name: cafeteriaData.name },
-          defaults: cafeteriaData,
-        });
+      // Validate required fields
+      if (!menuData.cafeteria_id || menuData.cafeteria_id.trim() === '') {
+        throw new Error('Kafeterya seçilmelidir');
       }
 
-      // Try to find the cafeteria again
-      cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+      if (!menuData.date || menuData.date.trim() === '') {
+        throw new Error('Tarih seçilmelidir');
+      }
+
+      if (!menuData.meal_type || menuData.meal_type.trim() === '') {
+        throw new Error('Öğün tipi seçilmelidir');
+      }
+
+      // Validate cafeteria exists
+      let cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
       if (!cafeteria) {
-        // If still not found, check if it's a name match
-        const allCafeterias = await Cafeteria.findAll({ where: { is_active: true } });
-        logger.error(`Cafeteria ${menuData.cafeteria_id} not found. Available cafeterias:`, 
-          allCafeterias.map(c => ({ id: c.id, name: c.name })));
-        throw new Error('Geçersiz kafeterya. Lütfen geçerli bir kafeterya seçin.');
+        // If cafeteria doesn't exist, try to seed default cafeterias
+        logger.warn(`Cafeteria ${menuData.cafeteria_id} not found, attempting to seed default cafeterias`);
+        
+        const defaultCafeterias = [
+          { name: 'Batı Kampüs', location: 'Batı Kampüs Kafeteryası', capacity: 500, is_active: true },
+          { name: 'Doğu Kampüs', location: 'Doğu Kampüs Kafeteryası', capacity: 500, is_active: true },
+          { name: 'Kuzey Kampüs', location: 'Kuzey Kampüs Kafeteryası', capacity: 500, is_active: true },
+          { name: 'Güney Kampüs', location: 'Güney Kampüs Kafeteryası', capacity: 500, is_active: true },
+        ];
+
+        for (const cafeteriaData of defaultCafeterias) {
+          try {
+            await Cafeteria.findOrCreate({
+              where: { name: cafeteriaData.name },
+              defaults: cafeteriaData,
+            });
+          } catch (seedError) {
+            logger.error('Error seeding cafeteria:', cafeteriaData.name, seedError);
+          }
+        }
+
+        // Try to find the cafeteria again
+        cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+        if (!cafeteria) {
+          // If still not found, list all available cafeterias
+          const allCafeterias = await Cafeteria.findAll({ where: { is_active: true } });
+          logger.error(`Cafeteria ${menuData.cafeteria_id} not found. Available cafeterias:`, 
+            allCafeterias.map(c => ({ id: c.id, name: c.name })));
+          throw new Error(`Geçersiz kafeterya ID: ${menuData.cafeteria_id}. Lütfen geçerli bir kafeterya seçin.`);
+        }
       }
+
+      logger.info('Cafeteria found:', { id: cafeteria.id, name: cafeteria.name });
+
+      // Clean nutrition_json - remove empty strings and convert to numbers where appropriate
+      let nutritionJson = menuData.nutrition_json || {};
+      if (typeof nutritionJson === 'object' && nutritionJson !== null) {
+        const cleanedNutrition = {};
+        if (nutritionJson.calories !== undefined && nutritionJson.calories !== null && nutritionJson.calories !== '') {
+          const calories = parseFloat(nutritionJson.calories);
+          if (!isNaN(calories)) {
+            cleanedNutrition.calories = calories;
+          }
+        }
+        if (nutritionJson.protein !== undefined && nutritionJson.protein !== null && nutritionJson.protein !== '') {
+          const protein = parseFloat(nutritionJson.protein);
+          if (!isNaN(protein)) {
+            cleanedNutrition.protein = protein;
+          }
+        }
+        if (nutritionJson.carbs !== undefined && nutritionJson.carbs !== null && nutritionJson.carbs !== '') {
+          const carbs = parseFloat(nutritionJson.carbs);
+          if (!isNaN(carbs)) {
+            cleanedNutrition.carbs = carbs;
+          }
+        }
+        if (nutritionJson.fat !== undefined && nutritionJson.fat !== null && nutritionJson.fat !== '') {
+          const fat = parseFloat(nutritionJson.fat);
+          if (!isNaN(fat)) {
+            cleanedNutrition.fat = fat;
+          }
+        }
+        nutritionJson = Object.keys(cleanedNutrition).length > 0 ? cleanedNutrition : null;
+      } else {
+        nutritionJson = null;
+      }
+
+      // Ensure items_json is an array
+      const itemsJson = Array.isArray(menuData.items_json) ? menuData.items_json : [];
+
+      // Parse price
+      let price = 0;
+      if (menuData.price !== undefined && menuData.price !== null && menuData.price !== '') {
+        const parsedPrice = parseFloat(menuData.price);
+        price = isNaN(parsedPrice) ? 0 : parsedPrice;
+      }
+
+      logger.info('Creating menu with cleaned data:', {
+        cafeteria_id: menuData.cafeteria_id,
+        date: menuData.date,
+        meal_type: menuData.meal_type,
+        items_count: itemsJson.length,
+        has_nutrition: nutritionJson !== null,
+        price: price,
+        is_published: menuData.is_published || false,
+      });
+
+      const menu = await MealMenu.create({
+        cafeteria_id: menuData.cafeteria_id,
+        date: menuData.date,
+        meal_type: menuData.meal_type,
+        items_json: itemsJson,
+        nutrition_json: nutritionJson,
+        price: price,
+        is_published: menuData.is_published !== undefined ? menuData.is_published : false,
+      });
+
+      logger.info(`Menu created successfully: ${menu.id}`);
+
+      return menu;
+    } catch (error) {
+      logger.error('Error in createMenu:', error);
+      logger.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name,
+        menuData: JSON.stringify(menuData, null, 2),
+      });
+      throw error;
     }
-
-    // Clean nutrition_json - remove empty strings and convert to numbers where appropriate
-    let nutritionJson = menuData.nutrition_json || {};
-    if (typeof nutritionJson === 'object') {
-      const cleanedNutrition = {};
-      if (nutritionJson.calories && nutritionJson.calories !== '') {
-        cleanedNutrition.calories = parseFloat(nutritionJson.calories) || null;
-      }
-      if (nutritionJson.protein && nutritionJson.protein !== '') {
-        cleanedNutrition.protein = parseFloat(nutritionJson.protein) || null;
-      }
-      if (nutritionJson.carbs && nutritionJson.carbs !== '') {
-        cleanedNutrition.carbs = parseFloat(nutritionJson.carbs) || null;
-      }
-      if (nutritionJson.fat && nutritionJson.fat !== '') {
-        cleanedNutrition.fat = parseFloat(nutritionJson.fat) || null;
-      }
-      nutritionJson = Object.keys(cleanedNutrition).length > 0 ? cleanedNutrition : null;
-    }
-
-    // Ensure items_json is an array
-    const itemsJson = Array.isArray(menuData.items_json) ? menuData.items_json : [];
-
-    const menu = await MealMenu.create({
-      cafeteria_id: menuData.cafeteria_id,
-      date: menuData.date,
-      meal_type: menuData.meal_type,
-      items_json: itemsJson,
-      nutrition_json: nutritionJson,
-      price: menuData.price ? parseFloat(menuData.price) : 0,
-      is_published: menuData.is_published !== undefined ? menuData.is_published : false,
-    });
-
-    logger.info(`Menu created: ${menu.id}`);
-
-    return menu;
   }
 
   /**

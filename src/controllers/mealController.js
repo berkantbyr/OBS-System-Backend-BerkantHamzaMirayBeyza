@@ -147,8 +147,10 @@ const createMenu = async (req, res) => {
     });
   } catch (error) {
     logger.error('Create menu error:', error);
+    logger.error('Error name:', error.name);
+    logger.error('Error message:', error.message);
     logger.error('Error stack:', error.stack);
-    logger.error('Request body:', req.body);
+    logger.error('Request body:', JSON.stringify(req.body, null, 2));
     
     // Check for specific error types
     if (error.name === 'SequelizeForeignKeyConstraintError') {
@@ -167,10 +169,21 @@ const createMenu = async (req, res) => {
       });
     }
 
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz veri: ' + error.errors.map(e => e.message).join(', '),
+        error: error.message,
+      });
+    }
+
+    // Return the actual error message to help debug
     res.status(500).json({
       success: false,
       message: error.message || 'Menü oluşturulurken hata oluştu',
       error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 };
