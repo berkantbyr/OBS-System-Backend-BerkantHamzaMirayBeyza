@@ -184,10 +184,21 @@ class WalletService {
       order: [['created_at', 'DESC']],
       limit,
       offset,
+      raw: false, // Sequelize instance döndür
+    });
+
+    // Transaction verilerini normalize et - DECIMAL değerleri sayıya çevir
+    const normalizedTransactions = transactions.map((tx) => {
+      const txData = tx.toJSON ? tx.toJSON() : tx;
+      return {
+        ...txData,
+        amount: txData.amount != null ? parseFloat(txData.amount) : 0,
+        balance_after: txData.balance_after != null ? parseFloat(txData.balance_after) : 0,
+      };
     });
 
     return {
-      transactions,
+      transactions: normalizedTransactions,
       pagination: {
         page,
         limit,
