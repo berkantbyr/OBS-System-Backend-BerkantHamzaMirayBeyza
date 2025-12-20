@@ -129,6 +129,14 @@ const getMenuById = async (req, res) => {
 const createMenu = async (req, res) => {
   try {
     const menuData = req.body;
+    
+    logger.info('Create menu request:', { 
+      cafeteria_id: menuData.cafeteria_id,
+      date: menuData.date,
+      meal_type: menuData.meal_type,
+      has_items: Array.isArray(menuData.items_json),
+      items_count: Array.isArray(menuData.items_json) ? menuData.items_json.length : 0,
+    });
 
     const menu = await mealService.createMenu(menuData);
 
@@ -139,9 +147,29 @@ const createMenu = async (req, res) => {
     });
   } catch (error) {
     logger.error('Create menu error:', error);
+    logger.error('Error stack:', error.stack);
+    logger.error('Request body:', req.body);
+    
+    // Check for specific error types
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz kafeterya. Lütfen geçerli bir kafeterya seçin.',
+        error: error.message,
+      });
+    }
+    
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Bu tarih ve öğün tipi için zaten bir menü mevcut.',
+        error: error.message,
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Menü oluşturulurken hata oluştu',
+      message: error.message || 'Menü oluşturulurken hata oluştu',
       error: error.message,
     });
   }

@@ -78,12 +78,54 @@ class MealService {
    * @returns {Object} - Created menu
    */
   async createMenu(menuData) {
+    // Validate required fields
+    if (!menuData.cafeteria_id) {
+      throw new Error('Kafeterya seçilmelidir');
+    }
+
+    if (!menuData.date) {
+      throw new Error('Tarih seçilmelidir');
+    }
+
+    if (!menuData.meal_type) {
+      throw new Error('Öğün tipi seçilmelidir');
+    }
+
+    // Validate cafeteria exists
+    const cafeteria = await Cafeteria.findByPk(menuData.cafeteria_id);
+    if (!cafeteria) {
+      throw new Error('Geçersiz kafeterya');
+    }
+
+    // Clean nutrition_json - remove empty strings and convert to numbers where appropriate
+    let nutritionJson = menuData.nutrition_json || {};
+    if (typeof nutritionJson === 'object') {
+      const cleanedNutrition = {};
+      if (nutritionJson.calories && nutritionJson.calories !== '') {
+        cleanedNutrition.calories = parseFloat(nutritionJson.calories) || null;
+      }
+      if (nutritionJson.protein && nutritionJson.protein !== '') {
+        cleanedNutrition.protein = parseFloat(nutritionJson.protein) || null;
+      }
+      if (nutritionJson.carbs && nutritionJson.carbs !== '') {
+        cleanedNutrition.carbs = parseFloat(nutritionJson.carbs) || null;
+      }
+      if (nutritionJson.fat && nutritionJson.fat !== '') {
+        cleanedNutrition.fat = parseFloat(nutritionJson.fat) || null;
+      }
+      nutritionJson = Object.keys(cleanedNutrition).length > 0 ? cleanedNutrition : null;
+    }
+
+    // Ensure items_json is an array
+    const itemsJson = Array.isArray(menuData.items_json) ? menuData.items_json : [];
+
     const menu = await MealMenu.create({
       cafeteria_id: menuData.cafeteria_id,
       date: menuData.date,
       meal_type: menuData.meal_type,
-      items_json: menuData.items_json || [],
-      nutrition_json: menuData.nutrition_json || {},
+      items_json: itemsJson,
+      nutrition_json: nutritionJson,
+      price: menuData.price ? parseFloat(menuData.price) : 0,
       is_published: menuData.is_published !== undefined ? menuData.is_published : false,
     });
 
