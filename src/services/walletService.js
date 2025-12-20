@@ -59,21 +59,79 @@ class WalletService {
    * @returns {Object} - Payment session
    */
   async createTopupSession(userId, amount) {
-    const wallet = await this.getWalletByUserId(userId);
-    const user = await User.findByPk(userId);
+    const transaction = await db.sequelize.transaction();
+    
+    try {
+      const wallet = await this.getWalletByUserId(userId, transaction);
+      const user = await User.findByPk(userId, { transaction });
 
-    if (!wallet.is_active) {
-      throw new Error('Cüzdan aktif değil');
+      if (!wallet.is_active) {
+        throw new Error('Cüzdan aktif değil');
+      }
+
+      // Test modu: Direkt olarak ödemeyi işle
+      const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Check if transaction already processed
+      const existingTransaction = await Transaction.findOne({
+        where: {
+          reference_type: 'payment',
+          reference_id: paymentId,
+        },
+        transaction,
+      });
+
+      if (existingTransaction) {
+        await transaction.rollback();
+        throw new Error('Ödeme zaten işlenmiş');
+      }
+
+      // Create credit transaction
+      const newBalance = parseFloat(wallet.balance) + parseFloat(amount);
+      const creditTransaction = await Transaction.create(
+        {
+          wallet_id: wallet.id,
+          type: 'credit',
+          amount: parseFloat(amount),
+          balance_after: newBalance,
+          reference_type: 'payment',
+          reference_id: paymentId,
+          description: `Cüzdan yükleme - ${paymentId}`,
+        },
+        { transaction }
+      );
+
+      // Update wallet balance
+      await wallet.update(
+        { balance: newBalance },
+        { transaction }
+      );
+
+      await transaction.commit();
+
+      logger.info(`Payment processed successfully: ${paymentId}, Wallet: ${wallet.id}, Amount: ${amount}`);
+
+      // Send notification
+      if (user) {
+        await notificationService.sendWalletTopupConfirmation(
+          user,
+          amount,
+          newBalance
+        );
+      }
+
+      return {
+        paymentId,
+        success: true,
+        amount,
+        newBalance,
+        currency: 'TRY',
+      };
+    } catch (error) {
+      await transaction.rollback();
+      logger.error('Create topup session error:', error);
+      throw error;
     }
-
-    const session = await paymentService.createTopupSession(wallet.id, amount, {
-      id: userId,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-    });
-
-    return session;
   }
 
   /**
