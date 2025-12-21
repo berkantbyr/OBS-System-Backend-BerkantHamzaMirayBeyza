@@ -10,7 +10,7 @@ const eventController = require('../controllers/eventController');
 
 // Event routes
 router.get('/', authenticate, eventController.getEvents);
-router.post('/', authenticate, authorize('admin', 'event_manager'), eventController.createEvent);
+router.post('/', authenticate, authorize('admin', 'faculty'), eventController.createEvent);
 
 // Registration routes (must be before /:id routes to avoid route conflicts)
 router.get('/my-registrations', authenticate, eventController.getMyEventRegistrations);

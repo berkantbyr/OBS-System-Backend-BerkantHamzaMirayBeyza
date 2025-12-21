@@ -1,7 +1,8 @@
 const db = require('../models');
-const { MealMenu, MealReservation, Cafeteria, User, Student } = db;
+const { MealMenu, MealReservation, Cafeteria, User, Student, Transaction } = db;
 const qrCodeService = require('./qrCodeService');
 const notificationService = require('./notificationService');
+const walletService = require('./walletService');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
@@ -13,6 +14,18 @@ class MealService {
    * Minimum hours before meal time to cancel reservation
    */
   MIN_CANCEL_HOURS = 2;
+
+  /**
+   * Get meal type label
+   */
+  getMealTypeLabel(type) {
+    const labels = {
+      breakfast: 'Kahvaltı',
+      lunch: 'Öğle Yemeği',
+      dinner: 'Akşam Yemeği',
+    };
+    return labels[type] || type;
+  }
 
   /**
    * Get menus with date filter
@@ -317,12 +330,49 @@ class MealService {
 
       logger.info(`Creating reservation - User: ${userId}, Date: ${date}, Meal: ${meal_type}`);
 
-      // All reservations are free - no wallet checks needed
+      // Get meal price
+      const mealPrice = parseFloat(menu.price) || 0;
+      
+      // Process payment if meal is paid
+      if (mealPrice > 0) {
+        const wallet = await walletService.getWalletByUserId(userId, transaction);
+        
+        if (!wallet.is_active) {
+          throw new Error('Cüzdanınız aktif değil');
+        }
+
+        const walletBalance = parseFloat(wallet.balance);
+
+        // Check if user has sufficient balance
+        if (walletBalance < mealPrice) {
+          throw new Error(`Yetersiz bakiye. Yemek ücreti: ${mealPrice} TRY, Mevcut bakiye: ${walletBalance} TRY`);
+        }
+
+        // Deduct from wallet
+        const newBalance = walletBalance - mealPrice;
+        await wallet.update({ balance: newBalance }, { transaction });
+
+        // Create debit transaction
+        await Transaction.create(
+          {
+            wallet_id: wallet.id,
+            type: 'debit',
+            amount: mealPrice,
+            balance_after: newBalance,
+            reference_type: 'meal_reservation',
+            reference_id: menu_id,
+            description: `Yemek rezervasyon ücreti - ${this.getMealTypeLabel(meal_type)}`,
+          },
+          { transaction }
+        );
+
+        logger.info(`Payment processed for meal reservation: ${menu_id}, Amount: ${mealPrice}, User: ${userId}`);
+      }
 
       // Generate QR code
       const qrCode = qrCodeService.generateQRCode('MEAL');
 
-      // Create reservation (all reservations are free)
+      // Create reservation
       const reservation = await MealReservation.create(
         {
           user_id: userId,
@@ -330,7 +380,7 @@ class MealService {
           cafeteria_id: cafeteria_id,
           meal_type: meal_type,
           date: date,
-          amount: 0, // All reservations are free
+          amount: mealPrice,
           qr_code: qrCode,
           status: 'reserved',
         },

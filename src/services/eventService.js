@@ -2,6 +2,7 @@ const db = require('../models');
 const { Event, EventRegistration, User, Student } = db;
 const qrCodeService = require('./qrCodeService');
 const notificationService = require('./notificationService');
+const walletService = require('./walletService');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
@@ -157,6 +158,43 @@ class EventService {
 
       if (existingRegistration) {
         throw new Error('Bu etkinliğe zaten kayıtlısınız');
+      }
+
+      // Check if event is paid and process payment
+      if (event.is_paid && event.price > 0) {
+        const wallet = await walletService.getWalletByUserId(userId, transaction);
+        
+        if (!wallet.is_active) {
+          throw new Error('Cüzdanınız aktif değil');
+        }
+
+        const walletBalance = parseFloat(wallet.balance);
+        const eventPrice = parseFloat(event.price);
+
+        // Check if user has sufficient balance
+        if (walletBalance < eventPrice) {
+          throw new Error(`Yetersiz bakiye. Etkinlik ücreti: ${eventPrice} TRY, Mevcut bakiye: ${walletBalance} TRY`);
+        }
+
+        // Deduct from wallet
+        const newBalance = walletBalance - eventPrice;
+        await wallet.update({ balance: newBalance }, { transaction });
+
+        // Create debit transaction
+        await db.Transaction.create(
+          {
+            wallet_id: wallet.id,
+            type: 'debit',
+            amount: eventPrice,
+            balance_after: newBalance,
+            reference_type: 'event_registration',
+            reference_id: eventId,
+            description: `Etkinlik kayıt ücreti - ${event.title}`,
+          },
+          { transaction }
+        );
+
+        logger.info(`Payment processed for event registration: ${eventId}, Amount: ${eventPrice}, User: ${userId}`);
       }
 
       // Check capacity
