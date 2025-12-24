@@ -43,6 +43,12 @@ describe('Auth Service - Unit Tests', () => {
       };
       db.sequelize.transaction = jest.fn().mockResolvedValue(mockTransaction);
 
+      const mockSafeUser = {
+        id: 'user-id-123',
+        email: mockUserData.email,
+        role: mockUserData.role,
+      };
+
       const mockUser = {
         id: 'user-id-123',
         email: mockUserData.email,
@@ -51,15 +57,11 @@ describe('Auth Service - Unit Tests', () => {
         last_name: mockUserData.lastName,
         is_active: true,
         is_verified: true,
-        toSafeObject: jest.fn().mockReturnValue({
-          id: 'user-id-123',
-          email: mockUserData.email,
-          role: mockUserData.role,
-        }),
+        toSafeObject: jest.fn().mockReturnValue(mockSafeUser),
       };
 
-      db.User.create.mockResolvedValue(mockUser);
-      db.Student.create.mockResolvedValue({});
+      db.User.create = jest.fn().mockResolvedValue(mockUser);
+      db.Student.create = jest.fn().mockResolvedValue({});
 
       const result = await authService.register(mockUserData);
 
@@ -98,8 +100,8 @@ describe('Auth Service - Unit Tests', () => {
         toSafeObject: jest.fn().mockReturnValue({ id: 'user-id-123' }),
       };
 
-      db.User.create.mockResolvedValue(mockUser);
-      db.Faculty.create.mockResolvedValue({});
+      db.User.create = jest.fn().mockResolvedValue(mockUser);
+      db.Faculty.create = jest.fn().mockResolvedValue({});
 
       const result = await authService.register(facultyData);
 
@@ -117,8 +119,8 @@ describe('Auth Service - Unit Tests', () => {
     });
 
     it('should throw error if student number already exists', async () => {
-      db.User.findOne.mockResolvedValue(null);
-      db.Student.findOne.mockResolvedValue({ id: 'existing-student' });
+      db.User.findOne = jest.fn().mockResolvedValue(null);
+      db.Student.findOne = jest.fn().mockResolvedValue({ id: 'existing-student' });
 
       await expect(authService.register(mockUserData)).rejects.toThrow('Bu öğrenci numarası zaten kayıtlı');
     });
@@ -130,8 +132,8 @@ describe('Auth Service - Unit Tests', () => {
         employeeNumber: 'EMP001',
       };
 
-      db.User.findOne.mockResolvedValue(null);
-      db.Faculty.findOne.mockResolvedValue({ id: 'existing-faculty' });
+      db.User.findOne = jest.fn().mockResolvedValue(null);
+      db.Faculty.findOne = jest.fn().mockResolvedValue({ id: 'existing-faculty' });
 
       await expect(authService.register(facultyData)).rejects.toThrow('Bu personel numarası zaten kayıtlı');
     });

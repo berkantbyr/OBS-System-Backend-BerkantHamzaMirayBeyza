@@ -1,0 +1,2632 @@
+﻿
+> university-obs-backend@1.0.0 test
+> jest --coverage --detectOpenHandles
+
+node.exe : FAIL tests
+/unit/authService.tes
+t.js
+At line:1 char:1
++ & "C:\Program Files
+\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (FAIL te   
+ sts/unit/authSer    
+vice.test.js:Str    
+ing) [], RemoteE    
+xception
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+  Auth Service - 
+Unit Tests
+    register
+      ├ù should 
+successfully 
+register a new 
+student (5 ms)
+      ├ù should 
+successfully 
+register a new 
+faculty member (1 ms)
+      ÔêÜ should 
+throw error if email 
+already exists (1 ms)
+      ├ù should 
+throw error if 
+student number 
+already exists (10 
+ms)
+      ├ù should 
+throw error if 
+employee number 
+already exists (4 ms)
+      ÔêÜ should 
+throw error if 
+department does not 
+exist (1 ms)
+      ÔêÜ should 
+rollback transaction 
+on error (1 ms)
+    verifyEmail
+      ÔêÜ should 
+successfully verify 
+email with valid 
+token (3 ms)
+      ÔêÜ should 
+throw error for 
+invalid token (1 ms)
+      ÔêÜ should 
+throw error if 
+verification record 
+not found (1 ms)
+      ÔêÜ should 
+throw error if 
+verification token 
+is already used (1 
+ms)
+      ÔêÜ should 
+throw error if 
+verification token 
+is expired (1 ms)
+    login
+      ÔêÜ should 
+successfully login 
+with valid 
+credentials (2 ms)
+      ÔêÜ should 
+throw error if user 
+not found
+      ÔêÜ should 
+throw error if 
+password is 
+incorrect (1 ms)
+      ÔêÜ should 
+throw error if user 
+is not verified (1 
+ms)
+      ÔêÜ should 
+throw error if user 
+is not active (1 ms)
+      ÔêÜ should 
+include student data 
+in response (1 ms)
+      ÔêÜ should 
+include faculty data 
+in response (1 ms)
+      ÔêÜ should 
+save refresh token 
+with metadata (1 ms)
+      ÔêÜ should 
+throw error when 
+email or password is 
+missing (1 ms)
+      ÔêÜ should map 
+database connection 
+errors to friendly 
+message (1 ms)
+      ÔêÜ should 
+throw friendly error 
+when password 
+comparison fails 
+unexpectedly (1 ms)
+    
+refreshAccessToken
+      ÔêÜ should 
+successfully refresh 
+access token (1 ms)
+      ÔêÜ should 
+throw error for 
+invalid token (1 ms)
+      ÔêÜ should 
+throw error if 
+refresh token not 
+found in database (1 
+ms)
+      ÔêÜ should 
+throw error if 
+refresh token is 
+revoked (1 ms)
+      ÔêÜ should 
+throw error if 
+refresh token is 
+expired (1 ms)
+    logout
+      ÔêÜ should 
+successfully logout 
+and revoke refresh 
+token (1 ms)
+      ÔêÜ should 
+handle logout 
+without token 
+gracefully (1 ms)
+      ÔêÜ should 
+handle logout with 
+empty token 
+gracefully
+    forgotPassword
+      ÔêÜ should 
+successfully send 
+password reset email 
+for existing user (1 
+ms)
+      ÔêÜ should 
+return success 
+message even if user 
+does not exist 
+(security) (1 ms)
+      ÔêÜ should 
+invalidate old reset 
+tokens (1 ms)
+      ÔêÜ should 
+handle email sending 
+failure gracefully 
+(1 ms)
+    resetPassword
+      ÔêÜ should 
+successfully reset 
+password with valid 
+token (1 ms)
+      ÔêÜ should 
+throw error for 
+invalid token (1 ms)
+      ÔêÜ should 
+throw error if reset 
+record not found (1 
+ms)
+      ÔêÜ should 
+throw error if reset 
+token is already 
+used (1 ms)
+      ÔêÜ should 
+throw error if reset 
+token is expired
+      ÔêÜ should 
+invalidate all 
+refresh tokens after 
+password reset
+
+  ÔùÅ Auth Service - 
+Unit Tests ÔÇ║ 
+register ÔÇ║ should 
+successfully 
+register a new 
+student
+
+    TypeError: 
+user.toSafeObject is 
+not a function
+
+    [0m [90m 104 
+|[39m     
+[36mreturn[39m {
+     [90m 105 
+|[39m       
+message[33m:[39m 
+[32m'Kay─▒t ba┼şar─▒
+l─▒.'[39m[33m,[39m
+    [31m[1m>[22m[
+39m[90m 106 |[39m  
+     user[33m:[39m 
+user[33m.[39mtoSafe
+Object()[33m,[39m
+     [90m     
+|[39m               
+   
+[31m[1m^[22m[39m
+     [90m 107 
+|[39m     
+}[33m;[39m
+     [90m 108 
+|[39m   } 
+[36mcatch[39m 
+(error) {
+     [90m 109 
+|[39m     
+[36mawait[39m trans
+action[33m.[39mroll
+back()[33m;[39m[0m
+
+      at 
+Object.toSafeObject 
+[as register] (src/se
+rvices/authService.js
+:106:18)
+      at 
+Object.<anonymous> (t
+ests/unit/authService
+.test.js:64:22)
+
+  ÔùÅ Auth Service - 
+Unit Tests ÔÇ║ 
+register ÔÇ║ should 
+successfully 
+register a new 
+faculty member
+
+    TypeError: 
+user.toSafeObject is 
+not a function
+
+    [0m [90m 104 
+|[39m     
+[36mreturn[39m {
+     [90m 105 
+|[39m       
+message[33m:[39m 
+[32m'Kay─▒t ba┼şar─▒
+l─▒.'[39m[33m,[39m
+    [31m[1m>[22m[
+39m[90m 106 |[39m  
+     user[33m:[39m 
+user[33m.[39mtoSafe
+Object()[33m,[39m
+     [90m     
+|[39m               
+   
+[31m[1m^[22m[39m
+     [90m 107 
+|[39m     
+}[33m;[39m
+     [90m 108 
+|[39m   } 
+[36mcatch[39m 
+(error) {
+     [90m 109 
+|[39m     
+[36mawait[39m trans
+action[33m.[39mroll
+back()[33m;[39m[0m
+
+      at 
+Object.toSafeObject 
+[as register] (src/se
+rvices/authService.js
+:106:18)
+      at 
+Object.<anonymous> (t
+ests/unit/authService
+.test.js:104:22)
+
+  ÔùÅ Auth Service - 
+Unit Tests ÔÇ║ 
+register ÔÇ║ should 
+throw error if 
+student number 
+already exists
+
+    expect(received).
+rejects.toThrow(expec
+ted)
+
+    Expected 
+substring: "Bu 
+├Â─şrenci numaras─▒ 
+zaten kay─▒tl─▒"
+    Received 
+message:   "Bu 
+e-posta adresi zaten 
+kay─▒tl─▒"
+
+        [0m [90m 
+36 |[39m   
+[36mconst[39m 
+existingUser 
+[33m=[39m 
+[36mawait[39m [33m
+User[39m[33m.[39mf
+indOne({ 
+where[33m:[39m { 
+email } })[33m;[39m
+         [90m 37 
+|[39m   
+[36mif[39m 
+(existingUser) {
+        [31m[1m>[2
+2m[39m[90m 38 
+|[39m     
+[36mthrow[39m 
+[36mnew[39m [33mEr
+ror[39m([32m'Bu 
+e-posta adresi zaten 
+kay─▒tl─▒'[39m)[33m
+;[39m
+         [90m    
+|[39m           
+[31m[1m^[22m[39m
+         [90m 39 
+|[39m   }
+         [90m 40 
+|[39m
+         [90m 41 
+|[39m   [90m// 
+Check if student 
+number already 
+exists[39m[0m
+
+      at 
+Object.register (src/
+services/authService.
+js:38:11)
+      at 
+Object.<anonymous> (t
+ests/unit/authService
+.test.js:123:7)
+      at 
+Object.toThrow (node_
+modules/expect/build/
+index.js:218:22)
+      at 
+Object.toThrow (tests
+/unit/authService.tes
+t.js:123:64)
+
+  ÔùÅ Auth Service - 
+Unit Tests ÔÇ║ 
+register ÔÇ║ should 
+throw error if 
+employee number 
+already exists
+
+    expect(received).
+rejects.toThrow(expec
+ted)
+
+    Expected 
+substring: "Bu 
+personel numaras─▒ 
+zaten kay─▒tl─▒"
+    Received 
+message:   "Bu 
+e-posta adresi zaten 
+kay─▒tl─▒"
+
+        [0m [90m 
+36 |[39m   
+[36mconst[39m 
+existingUser 
+[33m=[39m 
+[36mawait[39m [33m
+User[39m[33m.[39mf
+indOne({ 
+where[33m:[39m { 
+email } })[33m;[39m
+         [90m 37 
+|[39m   
+[36mif[39m 
+(existingUser) {
+        [31m[1m>[2
+2m[39m[90m 38 
+|[39m     
+[36mthrow[39m 
+[36mnew[39m [33mEr
+ror[39m([32m'Bu 
+e-posta adresi zaten 
+kay─▒tl─▒'[39m)[33m
+;[39m
+         [90m    
+|[39m           
+[31m[1m^[22m[39m
+         [90m 39 
+|[39m   }
+         [90m 40 
+|[39m
+         [90m 41 
+|[39m   [90m// 
+Check if student 
+number already 
+exists[39m[0m
+
+      at 
+Object.register (src/
+services/authService.
+js:38:11)
+      at 
+Object.<anonymous> (t
+ests/unit/authService
+.test.js:136:7)
+      at 
+Object.toThrow (node_
+modules/expect/build/
+index.js:218:22)
+      at 
+Object.toThrow (tests
+/unit/authService.tes
+t.js:136:63)
+
+FAIL tests/unit/allCo
+ntrollers.test.js
+  Comprehensive 
+Controller Tests
+    UserController
+      getProfile
+        ├ù should 
+return user profile 
+(2 ms)
+        ÔêÜ should 
+handle getProfile 
+error (1 ms)
+      updateProfile
+        ├ù should 
+update user profile 
+(1 ms)
+        ├ù should 
+handle updateProfile 
+error (1 ms)
+      
+updateProfilePicture
+        Ôùï skipped 
+should update 
+profile picture
+        Ôùï skipped 
+should return 400 if 
+no file
+      changePassword
+        ├ù should 
+change password (1 
+ms)
+        ├ù should 
+handle 
+changePassword error 
+(1 ms)
+      getAllUsers
+        Ôùï skipped 
+should get all users
+        Ôùï skipped 
+should handle 
+getAllUsers error
+      getUserById
+        ├ù should 
+get user by id
+        ├ù should 
+handle getUserById 
+not found
+      
+updateUserStatus
+        ├ù should 
+update user status 
+(1 ms)
+        ├ù should 
+handle 
+updateUserStatus 
+error (1 ms)
+      deleteUser
+        Ôùï skipped 
+should delete user
+        Ôùï skipped 
+should handle 
+deleteUser error
+      getAllFaculty
+        ÔêÜ should 
+get all faculty (1 
+ms)
+        ÔêÜ should 
+handle getAllFaculty 
+error (1 ms)
+      
+getAllDepartments
+        ÔêÜ should 
+get all departments 
+(1 ms)
+        ÔêÜ should 
+handle 
+getAllDepartments 
+error (1 ms)
+      
+getStudentProfile
+        ├ù should 
+get student profile 
+(1 ms)
+        ├ù should 
+return 404 if 
+student not found (1 
+ms)
+      
+getFacultyProfile
+        ├ù should 
+get faculty profile 
+(1 ms)
+        ├ù should 
+return 404 if 
+faculty not found (1 
+ms)
+      updateStudentDe
+partment
+        Ôùï skipped 
+should update 
+student department
+        Ôùï skipped 
+should return 404 if 
+student not found
+        Ôùï skipped 
+should return 404 if 
+department not found
+      updateFacultyDe
+partment
+        Ôùï skipped 
+should update 
+faculty department
+        Ôùï skipped 
+should return 404 if 
+faculty not found
+    CourseController
+      getCourses
+        ÔêÜ should 
+get all courses (1 
+ms)
+        ÔêÜ should 
+filter by department
+        ÔêÜ should 
+handle getCourses 
+error (1 ms)
+      getCourseById
+        ÔêÜ should 
+get course by id (1 
+ms)
+        ÔêÜ should 
+return 404 if course 
+not found
+      createCourse
+        Ôùï skipped 
+should create course
+        Ôùï skipped 
+should return 400 if 
+course code exists
+      updateCourse
+        ÔêÜ should 
+update course (1 ms)
+        ÔêÜ should 
+return 404 if course 
+not found (1 ms)
+      deleteCourse
+        Ôùï skipped 
+should delete course
+        Ôùï skipped 
+should return 404 if 
+course not found
+      getDepartments
+        ÔêÜ should 
+get departments (1 
+ms)
+    AnnouncementContr
+oller
+      
+getAnnouncements
+        ÔêÜ should 
+get announcements (1 
+ms)
+        ÔêÜ should 
+filter by type (1 ms)
+        ÔêÜ should 
+handle different 
+user roles (1 ms)
+      
+createAnnouncement
+        ÔêÜ should 
+create announcement 
+(1 ms)
+        ÔêÜ should 
+handle 
+createAnnouncement 
+error (1 ms)
+      
+updateAnnouncement
+        ÔêÜ should 
+update announcement 
+(1 ms)
+        ÔêÜ should 
+return 404 if not 
+found (14 ms)
+      
+deleteAnnouncement
+        ÔêÜ should 
+delete announcement 
+(1 ms)
+        ÔêÜ should 
+return 404 if not 
+found (1 ms)
+    
+EnrollmentController
+      enrollInCourse
+        ÔêÜ should 
+require section_id 
+(1 ms)
+      getMyCourses
+        ÔêÜ should 
+get student courses 
+(3 ms)
+      dropCourse
+        ÔêÜ should 
+require 
+enrollment_id (5 ms)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getProfile ÔÇ║ 
+should return user 
+profile
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: "1"
+
+    Number of calls: 
+0
+
+    [0m [90m 100 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mgetProfile(req[33m,
+[39m res)[33m;[39m
+     [90m 101 |[39m
+    [31m[1m>[22m[
+39m[90m 102 |[39m  
+               expect
+(userService[33m.[3
+9mgetProfile)[33m.[
+39mtoHaveBeenCalledWi
+th([32m'1'[39m)[33
+m;[39m
+     [90m     
+|[39m               
+                     
+            
+[31m[1m^[22m[39m
+     [90m 103 
+|[39m               
+  expect(res[33m.[3
+9mstatus)[33m.[39mt
+oHaveBeenCalledWith(
+[35m200[39m)[33m;[
+39m
+     [90m 104 
+|[39m             
+})[33m;[39m
+     [90m 105 
+|[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:102:48)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+updateProfile ÔÇ║ 
+should update user 
+profile
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 200
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 123 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mupdateProfile(req[3
+3m,[39m 
+res)[33m;[39m
+     [90m 124 |[39m
+    [31m[1m>[22m[
+39m[90m 125 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m200
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 126 
+|[39m             
+})[33m;[39m
+     [90m 127 |[39m
+     [90m 128 
+|[39m             
+it([32m'should 
+handle updateProfile 
+error'[39m[33m,[39
+m [36masync[39m () 
+[33m=>[39m {[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:125:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+updateProfile ÔÇ║ 
+should handle 
+updateProfile error
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 400
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 133 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mupdateProfile(req[3
+3m,[39m 
+res)[33m;[39m
+     [90m 134 |[39m
+    [31m[1m>[22m[
+39m[90m 135 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m400
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 136 
+|[39m             
+})[33m;[39m
+     [90m 137 
+|[39m         
+})[33m;[39m
+     [90m 138 
+|[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:135:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+changePassword ÔÇ║ 
+should change 
+password
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 200
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 173 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mchangePassword(req[
+33m,[39m 
+res)[33m;[39m
+     [90m 174 |[39m
+    [31m[1m>[22m[
+39m[90m 175 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m200
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 176 
+|[39m             
+})[33m;[39m
+     [90m 177 |[39m
+     [90m 178 
+|[39m             
+it([32m'should 
+handle 
+changePassword error'
+[39m[33m,[39m 
+[36masync[39m () 
+[33m=>[39m {[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:175:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+changePassword ÔÇ║ 
+should handle 
+changePassword error
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 400
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 183 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mchangePassword(req[
+33m,[39m 
+res)[33m;[39m
+     [90m 184 |[39m
+    [31m[1m>[22m[
+39m[90m 185 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m400
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 186 
+|[39m             
+})[33m;[39m
+     [90m 187 
+|[39m         
+})[33m;[39m
+     [90m 188 
+|[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:185:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getUserById ÔÇ║ 
+should get user by id
+
+    TypeError: userCo
+ntroller.getUserById 
+is not a function
+
+    [0m [90m 216 
+|[39m               
+  userService[33m.[
+39mgetUserById[33m.
+[39mmockResolvedValue
+({ id[33m:[39m 
+[32m'1'[39m 
+})[33m;[39m
+     [90m 217 |[39m
+    [31m[1m>[22m[
+39m[90m 218 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etUserById(req[33m,
+[39m res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 219 |[39m
+     [90m 220 
+|[39m               
+  expect(res[33m.[3
+9mstatus)[33m.[39mt
+oHaveBeenCalledWith(
+[35m200[39m)[33m;[
+39m
+     [90m 221 
+|[39m             
+})[33m;[39m[0m
+
+      at 
+Object.getUserById (t
+ests/unit/allControll
+ers.test.js:218:38)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getUserById ÔÇ║ 
+should handle 
+getUserById not found
+
+    TypeError: userCo
+ntroller.getUserById 
+is not a function
+
+    [0m [90m 226 
+|[39m               
+  userService[33m.[
+39mgetUserById[33m.
+[39mmockRejectedValue
+([36mnew[39m [33mE
+rror[39m([32m'Not f
+ound'[39m))[33m;[3
+9m
+     [90m 227 |[39m
+    [31m[1m>[22m[
+39m[90m 228 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etUserById(req[33m,
+[39m res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 229 |[39m
+     [90m 230 
+|[39m               
+  expect(res[33m.[3
+9mstatus)[33m.[39mt
+oHaveBeenCalledWith(
+[35m404[39m)[33m;[
+39m
+     [90m 231 
+|[39m             
+})[33m;[39m[0m
+
+      at 
+Object.getUserById (t
+ests/unit/allControll
+ers.test.js:228:38)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+updateUserStatus ÔÇ║ 
+should update user 
+status
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 200
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 240 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mupdateUserStatus(req
+[33m,[39m 
+res)[33m;[39m
+     [90m 241 |[39m
+    [31m[1m>[22m[
+39m[90m 242 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m200
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 243 
+|[39m             
+})[33m;[39m
+     [90m 244 |[39m
+     [90m 245 
+|[39m             
+it([32m'should 
+handle 
+updateUserStatus erro
+r'[39m[33m,[39m 
+[36masync[39m () 
+[33m=>[39m {[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:242:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+updateUserStatus ÔÇ║ 
+should handle 
+updateUserStatus 
+error
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 400
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 250 
+|[39m               
+  [36mawait[39m use
+rController[33m.[39
+mupdateUserStatus(req
+[33m,[39m 
+res)[33m;[39m
+     [90m 251 |[39m
+    [31m[1m>[22m[
+39m[90m 252 |[39m  
+               expect
+(res[33m.[39mstatus
+)[33m.[39mtoHaveBee
+nCalledWith([35m400
+[39m)[33m;[39m
+     [90m     
+|[39m               
+                     
+[31m[1m^[22m[39m
+     [90m 253 
+|[39m             
+})[33m;[39m
+     [90m 254 
+|[39m         
+})[33m;[39m
+     [90m 255 
+|[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/allControllers
+.test.js:252:36)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getStudentProfile 
+ÔÇ║ should get 
+student profile
+
+    TypeError: userCo
+ntroller.getStudentPr
+ofile is not a 
+function
+
+    [0m [90m 333 
+|[39m               
+  })[33m;[39m
+     [90m 334 |[39m
+    [31m[1m>[22m[
+39m[90m 335 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etStudentProfile(req
+[33m,[39m 
+res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 336 |[39m
+     [90m 337 
+|[39m               
+  expect(res[33m.[3
+9mjson)[33m.[39mtoH
+aveBeenCalledWith(exp
+ect[33m.[39mobjectC
+ontaining({ 
+success[33m:[39m 
+[36mtrue[39m 
+}))[33m;[39m
+     [90m 338 
+|[39m             
+})[33m;[39m[0m
+
+      at Object.getSt
+udentProfile (tests/u
+nit/allControllers.te
+st.js:335:38)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getStudentProfile 
+ÔÇ║ should return 
+404 if student not 
+found
+
+    TypeError: userCo
+ntroller.getStudentPr
+ofile is not a 
+function
+
+    [0m [90m 343 
+|[39m               
+  db[33m.[39m[33mS
+tudent[39m[33m.[39
+mfindOne[33m.[39mmo
+ckResolvedValue([36m
+null[39m)[33m;[39m
+     [90m 344 |[39m
+    [31m[1m>[22m[
+39m[90m 345 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etStudentProfile(req
+[33m,[39m 
+res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 346 |[39m
+     [90m 347 
+|[39m               
+  expect(res[33m.[3
+9mstatus)[33m.[39mt
+oHaveBeenCalledWith(
+[35m404[39m)[33m;[
+39m
+     [90m 348 
+|[39m             
+})[33m;[39m[0m
+
+      at Object.getSt
+udentProfile (tests/u
+nit/allControllers.te
+st.js:345:38)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getFacultyProfile 
+ÔÇ║ should get 
+faculty profile
+
+    TypeError: userCo
+ntroller.getFacultyPr
+ofile is not a 
+function
+
+    [0m [90m 359 
+|[39m               
+  })[33m;[39m
+     [90m 360 |[39m
+    [31m[1m>[22m[
+39m[90m 361 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etFacultyProfile(req
+[33m,[39m 
+res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 362 |[39m
+     [90m 363 
+|[39m               
+  expect(res[33m.[3
+9mjson)[33m.[39mtoH
+aveBeenCalledWith(exp
+ect[33m.[39mobjectC
+ontaining({ 
+success[33m:[39m 
+[36mtrue[39m 
+}))[33m;[39m
+     [90m 364 
+|[39m             
+})[33m;[39m[0m
+
+      at Object.getFa
+cultyProfile (tests/u
+nit/allControllers.te
+st.js:361:38)
+
+  ÔùÅ Comprehensive 
+Controller Tests ÔÇ║ 
+UserController ÔÇ║ 
+getFacultyProfile 
+ÔÇ║ should return 
+404 if faculty not 
+found
+
+    TypeError: userCo
+ntroller.getFacultyPr
+ofile is not a 
+function
+
+    [0m [90m 369 
+|[39m               
+  db[33m.[39m[33mF
+aculty[39m[33m.[39
+mfindOne[33m.[39mmo
+ckResolvedValue([36m
+null[39m)[33m;[39m
+     [90m 370 |[39m
+    [31m[1m>[22m[
+39m[90m 371 |[39m  
+               
+[36mawait[39m userC
+ontroller[33m.[39mg
+etFacultyProfile(req
+[33m,[39m 
+res)[33m;[39m
+     [90m     
+|[39m               
+                     
+  
+[31m[1m^[22m[39m
+     [90m 372 |[39m
+     [90m 373 
+|[39m               
+  expect(res[33m.[3
+9mstatus)[33m.[39mt
+oHaveBeenCalledWith(
+[35m404[39m)[33m;[
+39m
+     [90m 374 
+|[39m             
+})[33m;[39m[0m
+
+      at Object.getFa
+cultyProfile (tests/u
+nit/allControllers.te
+st.js:371:38)
+
+FAIL tests/unit/userC
+ontroller.test.js
+  UserController
+    getProfile
+      ├ù should 
+return user profile 
+successfully (1 ms)
+      ÔêÜ should 
+handle errors (1 ms)
+    updateProfile
+      ├ù should 
+update profile 
+successfully (1 ms)
+      ├ù should 
+handle errors (1 ms)
+    changePassword
+      ├ù should 
+change password 
+successfully (1 ms)
+    getAllFaculty
+      ÔêÜ should 
+return list of 
+faculty members (1 
+ms)
+
+  ÔùÅ UserController 
+ÔÇ║ getProfile ÔÇ║ 
+should return user 
+profile successfully
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 
+"user-123"
+
+    Number of calls: 
+0
+
+    [0m [90m 63 
+|[39m             
+[36mawait[39m userC
+ontroller[33m.[39mg
+etProfile(req[33m,[
+39m res)[33m;[39m
+     [90m 64 |[39m
+    [31m[1m>[22m[
+39m[90m 65 |[39m   
+          expect(user
+Service[33m.[39mget
+Profile)[33m.[39mto
+HaveBeenCalledWith([
+32m'user-123'[39m)[
+33m;[39m
+     [90m    |[39m 
+                     
+                     
+ [31m[1m^[22m[39m
+     [90m 66 |[39m 
+            expect(re
+s[33m.[39mstatus)[
+33m.[39mtoHaveBeenCa
+lledWith([35m200[39
+m)[33m;[39m
+     [90m 67 |[39m 
+            expect(re
+s[33m.[39mjson)[33
+m.[39mtoHaveBeenCall
+edWith({
+     [90m 68 |[39m 
+                
+success[33m:[39m [
+36mtrue[39m[33m,[3
+9m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/userController
+.test.js:65:44)
+
+  ÔùÅ UserController 
+ÔÇ║ updateProfile 
+ÔÇ║ should update 
+profile successfully
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 
+"user-1", {"phone": 
+"123"}
+
+    Number of calls: 
+0
+
+    [0m [90m 93 
+|[39m             
+[36mawait[39m userC
+ontroller[33m.[39mu
+pdateProfile(req[33m
+,[39m 
+res)[33m;[39m
+     [90m 94 |[39m
+    [31m[1m>[22m[
+39m[90m 95 |[39m   
+          expect(user
+Service[33m.[39mupd
+ateProfile)[33m.[39
+mtoHaveBeenCalledWith
+([32m'user-1'[39m[
+33m,[39m { 
+phone[33m:[39m 
+[32m'123'[39m 
+})[33m;[39m
+     [90m    |[39m 
+                     
+                     
+    
+[31m[1m^[22m[39m
+     [90m 96 |[39m 
+            expect(re
+s[33m.[39mstatus)[
+33m.[39mtoHaveBeenCa
+lledWith([35m200[39
+m)[33m;[39m
+     [90m 97 |[39m 
+            expect(re
+s[33m.[39mjson)[33
+m.[39mtoHaveBeenCall
+edWith({
+     [90m 98 |[39m 
+                
+success[33m:[39m [
+36mtrue[39m[33m,[3
+9m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/userController
+.test.js:95:47)
+
+  ÔùÅ UserController 
+ÔÇ║ updateProfile 
+ÔÇ║ should handle 
+errors
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 400
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 110 
+|[39m
+     [90m 111 
+|[39m             
+[90m// Based on 
+observed behavior, 
+controller returns 
+400 on update 
+error[39m
+    [31m[1m>[22m[
+39m[90m 112 |[39m  
+           expect(res
+[33m.[39mstatus)[3
+3m.[39mtoHaveBeenCal
+ledWith([35m400[39m
+)[33m;[39m
+     [90m     
+|[39m               
+                 
+[31m[1m^[22m[39m
+     [90m 113 
+|[39m         
+})[33m;[39m
+     [90m 114 
+|[39m     
+})[33m;[39m
+     [90m 115 
+|[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/userController
+.test.js:112:32)
+
+  ÔùÅ UserController 
+ÔÇ║ changePassword 
+ÔÇ║ should change 
+password successfully
+
+    expect(jest.fn())
+.toHaveBeenCalledWith
+(...expected)
+
+    Expected: 200
+    Received: 404
+
+    Number of calls: 
+1
+
+    [0m [90m 127 
+|[39m             
+[36mawait[39m userC
+ontroller[33m.[39mc
+hangePassword(req[33
+m,[39m 
+res)[33m;[39m
+     [90m 128 |[39m
+    [31m[1m>[22m[
+39m[90m 129 |[39m  
+           expect(res
+[33m.[39mstatus)[3
+3m.[39mtoHaveBeenCal
+ledWith([35m200[39m
+)[33m;[39m
+     [90m     
+|[39m               
+                 
+[31m[1m^[22m[39m
+     [90m 130 
+|[39m             ex
+pect(res[33m.[39mjs
+on)[33m.[39mtoHaveB
+eenCalledWith({
+     [90m 131 
+|[39m               
+  success[33m:[39m 
+[36mtrue[39m[33m,
+[39m
+     [90m 132 
+|[39m               
+  message[33m:[39m 
+[32m'┼Şifre 
+ba┼şar─▒yla de─şi┼şti
+rildi'[39m[0m
+
+      at Object.toHav
+eBeenCalledWith (test
+s/unit/userController
+.test.js:129:32)
+
+2025-12-24 15:18:06 [[32MINFO[39M]: ­şôè Getting attendance stats - Student: student-1, Section: section-1
+2025-12-24 15:18:06 [[32MINFO[39M]: Ô£à Found 0 sessions for section: section-1
+2025-12-24 15:18:06 [[32MINFO[39M]: ÔÜá´©Å No sessions found for section: section-1, returning default stats
+2025-12-24 15:18:06 [[32MINFO[39M]: ­şôè Getting attendance stats - Student: student-1, Section: section-1
+2025-12-24 15:18:06 [[32MINFO[39M]: Ô£à Found 1 sessions for section: section-1
+2025-12-24 15:18:06 [[32MINFO[39M]: Ô£à Found 2 attendance records for student: student-1
+2025-12-24 15:18:06 [[32MINFO[39M]: Ô£à Found 1 approved excuse requests
+2025-12-24 15:18:06 [[32MINFO[39M]: ­şôê Attendance stats calculated - Total: 1, Present: 1, Late: 1, Excused: 1, Absent: -2, Percentage: 300%, Status: ok
+FAIL tests/unit/atten
+danceService.test.js
+  Attendance Service 
+- Unit Tests
+    
+calculateDistance 
+(Haversine)
+      ÔêÜ should 
+calculate distance 
+between two 
+identical points as 
+0 (1 ms)
+      ÔêÜ should 
+return positive 
+distance for 
+different points (1 
+ms)
+      ÔêÜ should 
+correctly calculate 
+known approximate 
+distance on equator 
+(1 ms)
+    checkGeofence
+      ÔêÜ should 
+mark student within 
+geofence with 
+accuracy buffer
+      ÔêÜ should cap 
+accuracy buffer at 
+20 meters
+      ÔêÜ should 
+mark student outside 
+geofence when too 
+far (1 ms)
+    detectSpoofing
+      ÔêÜ should be 
+a function (1 ms)
+      ÔêÜ should 
+detect suspiciously 
+high accuracy
+      ÔêÜ should 
+detect too poor GPS 
+accuracy
+      ÔêÜ should 
+detect impossible 
+travel based on last 
+record (2 ms)
+      ÔêÜ should 
+detect exact 
+coordinate match 
+with session 
+location (1 ms)
+      ÔêÜ should 
+return not 
+suspicious when 
+there are no reasons 
+(1 ms)
+    getStudentAttenda
+nceStats
+      ÔêÜ should 
+return default stats 
+when there are no 
+sessions (8 ms)
+      ├ù should 
+calculate stats with 
+sessions, records 
+and excuses (7 ms)
+    processCheckIn 
+(GPS)
+      ├ù should 
+create attendance 
+record when all 
+validations pass
+      ÔêÜ should 
+throw if session 
+does not exist (1 ms)
+      ÔêÜ should 
+throw if student not 
+enrolled in section 
+(1 ms)
+
+  ÔùÅ Attendance 
+Service - Unit Tests 
+ÔÇ║ getStudentAttenda
+nceStats ÔÇ║ should 
+calculate stats with 
+sessions, records 
+and excuses
+
+    expect(received).
+toBe(expected) // 
+Object.is equality
+
+    Expected: 3
+    Received: 1
+
+    [0m [90m 205 
+|[39m       
+[36mconst[39m 
+stats [33m=[39m 
+[36mawait[39m atten
+danceService[33m.[3
+9mgetStudentAttendanc
+eStats([32m'student-
+1'[39m[33m,[39m [
+32m'section-1'[39m)
+[33m;[39m
+     [90m 206 |[39m
+    [31m[1m>[22m[
+39m[90m 207 |[39m  
+     expect(stats[33
+m.[39mtotalSessions)
+[33m.[39mtoBe([35m
+3[39m)[33m;[39m
+     [90m     
+|[39m               
+                    
+[31m[1m^[22m[39m
+     [90m 208 
+|[39m       expect(s
+tats[33m.[39mpresen
+t)[33m.[39mtoBe([3
+5m1[39m)[33m;[39m
+     [90m 209 
+|[39m       expect(s
+tats[33m.[39mlate)
+[33m.[39mtoBe([35m1
+[39m)[33m;[39m
+     [90m 210 
+|[39m       expect(s
+tats[33m.[39mexcuse
+d)[33m.[39mtoBe([3
+5m1[39m)[33m;[39m
+[0m
+
+      at Object.toBe 
+(tests/unit/attendanc
+eService.test.js:207:
+35)
+
+  ÔùÅ Attendance 
+Service - Unit Tests 
+ÔÇ║ processCheckIn 
+(GPS) ÔÇ║ should 
+create attendance 
+record when all 
+validations pass
+
+    Student is not 
+enrolled in this 
+course
+
+    [0m [90m 162 
+|[39m
+     [90m 163 
+|[39m     
+[36mif[39m ([33m!
+[39menrollment) {
+    [31m[1m>[22m[
+39m[90m 164 |[39m  
+     [36mthrow[39m 
+[36mnew[39m [33mEr
+ror[39m([32m'Studen
+t is not enrolled in 
+this course'[39m)[3
+3m;[39m
+     [90m     
+|[39m             
+[31m[1m^[22m[39m
+     [90m 165 
+|[39m     }
+     [90m 166 |[39m
+     [90m 167 
+|[39m     [90m// 
+Check if already 
+checked in[39m[0m
+
+      at AttendanceSe
+rvice.processCheckIn 
+(src/services/attenda
+nceService.js:164:13)
+      at 
+Object.<anonymous> (t
+ests/unit/attendanceS
+ervice.test.js:255:22
+)
+
+FAIL tests/unit/prere
+quisiteService.test.j
+s
+  Prerequisite 
+Service - Unit Tests
+    gradeCompare
+      ÔêÜ should 
+correctly compare AA 
+> BB (1 ms)
+      ÔêÜ should 
+correctly compare FF 
+< DD (1 ms)
+      ÔêÜ should 
+return 0 for equal 
+grades
+      ÔêÜ should 
+handle CC grade (1 
+ms)
+      ÔêÜ should 
+return 0 when 
+unknown grade is 
+provided (1 ms)
+    getDirectPrerequi
+sites
+      ÔêÜ should map 
+prerequisite courses 
+with min_grade (1 ms)
+    
+getAllPrerequisites 
+(recursive scenarios)
+      ÔêÜ should 
+return nested 
+prerequisites 
+recursively (1 ms)
+      ├ù should stop 
+when cycle is 
+detected using 
+visited set (1 ms)
+    
+hasCompletedCourse
+      ÔêÜ should 
+return false when 
+course has no 
+sections (1 ms)
+      ÔêÜ should 
+return false when no 
+completed enrollment 
+is found
+      ÔêÜ should 
+return true when 
+enrollment grade 
+meets minimum 
+requirement
+      ÔêÜ should 
+return false when 
+enrollment grade is 
+below minimum 
+requirement (1 ms)
+    
+checkPrerequisites
+      ÔêÜ should 
+mark all 
+prerequisites as 
+satisfied when 
+student completed 
+them (1 ms)
+      ├ù should 
+return missing list 
+when some 
+prerequisites are 
+not completed (1 ms)
+
+  ÔùÅ Prerequisite 
+Service - Unit Tests 
+ÔÇ║ 
+getAllPrerequisites 
+(recursive 
+scenarios) ÔÇ║ 
+should stop when 
+cycle is detected 
+using visited set
+
+    expect(received).
+not.toContain(expecte
+d) // indexOf
+
+    Expected value: 
+not "C1"
+    Received array:  
+   ["C2", "C1"]
+
+    [0m [90m 188 
+|[39m       expect(i
+ds)[33m.[39mtoConta
+in([32m'C2'[39m)[3
+3m;[39m
+     [90m 189 
+|[39m       [90m// 
+C1 should not be 
+added as its own 
+prerequisite[39m
+    [31m[1m>[22m[
+39m[90m 190 |[39m  
+     expect(ids)[33m
+.[39mnot[33m.[39mt
+oContain([32m'C1'[3
+9m)[33m;[39m
+     [90m     
+|[39m               
+        
+[31m[1m^[22m[39m
+     [90m 191 
+|[39m     
+})[33m;[39m
+     [90m 192 
+|[39m   
+})[33m;[39m
+     [90m 193 
+|[39m[0m
+
+      at 
+Object.toContain (tes
+ts/unit/prerequisiteS
+ervice.test.js:190:23
+)
+
+  ÔùÅ Prerequisite 
+Service - Unit Tests 
+ÔÇ║ 
+checkPrerequisites 
+ÔÇ║ should return 
+missing list when 
+some prerequisites 
+are not completed
+
+    Property 
+`Enrollment` does 
+not have access type 
+get
+
+    [0m [90m 320 
+|[39m
+     [90m 321 
+|[39m       
+[36mconst[39m 
+enrollmentMock 
+[33m=[39m jest
+    [31m[1m>[22m[
+39m[90m 322 |[39m  
+       [33m.[39mspy
+On(db[33m,[39m [32
+m'Enrollment'[39m[3
+3m,[39m 
+[32m'get'[39m)
+     [90m     
+|[39m          
+[31m[1m^[22m[39m
+     [90m 323 
+|[39m         [33m.
+[39mmockReturnValue(
+{
+     [90m 324 
+|[39m           
+findOne[33m:[39m 
+jest
+     [90m 325 
+|[39m             
+[33m.[39mfn()[0m
+
+      at ModuleMocker
+._spyOnProperty (node
+_modules/jest-mock/bu
+ild/index.js:819:13)
+      at 
+Object.spyOn (tests/u
+nit/prerequisiteServi
+ce.test.js:322:10)
+
+FAIL tests/unit/qrCod
+eService.test.js
+  QR Code Service - 
+Unit Tests
+    generateQRCode
+      ÔêÜ should 
+generate a QR code 
+without prefix (2 ms)
+      ÔêÜ should 
+generate a QR code 
+with prefix (1 ms)
+      ÔêÜ should 
+generate unique QR 
+codes (1 ms)
+      ÔêÜ should 
+generate QR codes 
+with different 
+prefixes
+      ├ù should 
+generate uppercase 
+QR codes
+    validateQRCode
+      ÔêÜ should 
+validate correct QR 
+code format (1 ms)
+      ÔêÜ should 
+reject invalid QR 
+code formats (1 ms)
+      ÔêÜ should 
+handle empty string 
+(1 ms)
+      ÔêÜ should 
+handle special 
+characters (1 ms)
+    extractPrefix
+      ÔêÜ should 
+extract prefix from 
+QR code with prefix
+      ÔêÜ should 
+extract different 
+prefixes (1 ms)
+      ÔêÜ should 
+return null for QR 
+code without prefix 
+(1 ms)
+      ├ù should 
+return null for 
+invalid format
+      ÔêÜ should 
+extract prefix from 
+codes with single 
+letter prefix (1 ms)
+      ÔêÜ should 
+extract prefix from 
+codes with long 
+prefix
+    Integration: 
+generate and validate
+      ÔêÜ should 
+generate valid QR 
+codes (3 ms)
+      ÔêÜ should 
+extract correct 
+prefix from 
+generated codes
+
+  ÔùÅ QR Code 
+Service - Unit Tests 
+ÔÇ║ generateQRCode 
+ÔÇ║ should generate 
+uppercase QR codes
+
+    expect(received).
+toMatch(expected)
+
+    Expected 
+pattern: 
+/^TEST-[A-Z0-9]+$/
+    Received string: 
+ "test-FC055C82523A42
+2785EDD457CC52E13E"
+
+    [0m [90m 55 
+|[39m       
+[36mconst[39m 
+qrCode [33m=[39m qr
+CodeService[33m.[39
+mgenerateQRCode([32m
+'test'[39m)[33m;[3
+9m
+     [90m 56 |[39m
+    [31m[1m>[22m[
+39m[90m 57 |[39m   
+    expect(qrCode)[3
+3m.[39mtoMatch([35m
+/^TEST-[A-Z0-9]+$/[3
+9m)[33m;[39m
+     [90m    |[39m 
+                     
+[31m[1m^[22m[39m
+     [90m 58 |[39m 
+      expect(qrCode)
+[33m.[39mtoBe(qrCode
+[33m.[39mtoUpperCas
+e())[33m;[39m
+     [90m 59 |[39m 
+    })[33m;[39m
+     [90m 60 |[39m 
+  })[33m;[39m[0m
+
+      at 
+Object.toMatch (tests
+/unit/qrCodeService.t
+est.js:57:22)
+
+  ÔùÅ QR Code 
+Service - Unit Tests 
+ÔÇ║ extractPrefix 
+ÔÇ║ should return 
+null for invalid 
+format
+
+    TypeError: 
+Cannot read 
+properties of null 
+(reading 'match')
+
+    [0m [90m 37 
+|[39m [90m   
+*/[39m
+     [90m 38 |[39m 
+  extractPrefix(qrCod
+e) {
+    [31m[1m>[22m[
+39m[90m 39 |[39m   
+  [36mconst[39m 
+match [33m=[39m qrC
+ode[33m.[39mmatch(
+[35m/^([A-Z]+)-/[39m
+)[33m;[39m
+     [90m    |[39m 
+                     
+    
+[31m[1m^[22m[39m
+     [90m 40 |[39m 
+    [36mreturn[39m 
+match [33m?[39m 
+match[[35m1[39m] 
+[33m:[39m [36mnull
+[39m[33m;[39m
+     [90m 41 |[39m 
+  }
+     [90m 42 |[39m 
+}[0m
+
+      at 
+QRCodeService.match 
+[as extractPrefix] (s
+rc/services/qrCodeSer
+vice.js:39:26)
+      at 
+Object.extractPrefix 
+(tests/unit/qrCodeSer
+vice.test.js:138:28)
+
+FAIL tests/unit/cache
+Middleware.test.js
+  Cache Middleware
+    cacheMiddleware
+      ÔêÜ should 
+call next for 
+non-GET requests (1 
+ms)
+      ÔêÜ should 
+call next when Redis 
+is not available (1 
+ms)
+      ÔêÜ should 
+call next for routes 
+without cache config 
+(1 ms)
+    CACHE_CONFIG
+      ÔêÜ should 
+have analytics 
+config (1 ms)
+      ÔêÜ should 
+have courses config
+      ÔêÜ should 
+have meals config (1 
+ms)
+    invalidateCache
+      ├ù should 
+handle cache 
+invalidation (1 ms)
+
+  ÔùÅ Cache 
+Middleware ÔÇ║ 
+invalidateCache ÔÇ║ 
+should handle cache 
+invalidation
+
+    expect(received).
+toBe(expected) // 
+Object.is equality
+
+    Expected: 0
+    Received: 
+undefined
+
+    [0m [90m 79 
+|[39m         
+it([32m'should 
+handle cache invalida
+tion'[39m[33m,[39m
+ [36masync[39m () 
+[33m=>[39m {
+     [90m 80 |[39m 
+            
+[36mconst[39m 
+result [33m=[39m 
+[36mawait[39m inval
+idateCache([32m'test
+'[39m)[33m;[39m
+    [31m[1m>[22m[
+39m[90m 81 |[39m   
+          expect(resu
+lt)[33m.[39mtoBe([
+35m0[39m)[33m;[39m
+ [90m// Redis not 
+available[39m
+     [90m    |[39m 
+                     
+      
+[31m[1m^[22m[39m
+     [90m 82 |[39m 
+        })[33m;[39m
+     [90m 83 |[39m 
+    })[33m;[39m
+     [90m 84 |[39m 
+})[33m;[39m[0m
+
+      at Object.toBe 
+(tests/unit/cacheMidd
+leware.test.js:81:28)
+
+PASS tests/unit/payme
+ntService.test.js
+  Payment Service - 
+Unit Tests
+    
+createTopupSession
+      ÔêÜ should 
+successfully create 
+a topup session (2 
+ms)
+      ÔêÜ should 
+throw error if 
+amount is below 
+minimum (6 ms)
+      ÔêÜ should 
+generate unique 
+payment IDs (12 ms)
+      ÔêÜ should set 
+expiration time to 
+30 minutes from now 
+(1 ms)
+    verifyWebhookSign
+ature
+      ÔêÜ should 
+return true for 
+valid signature 
+(mock implementation)
+      ÔêÜ should 
+handle different 
+signature formats
+    
+processPaymentWebhook
+      ÔêÜ should 
+successfully process 
+payment webhook (2 
+ms)
+      ÔêÜ should 
+throw error if 
+wallet not found (1 
+ms)
+      ÔêÜ should 
+throw error if 
+wallet is not active 
+(1 ms)
+      ÔêÜ should 
+handle duplicate 
+payment processing
+      ÔêÜ should 
+correctly calculate 
+new balance
+      ÔêÜ should 
+rollback transaction 
+on error (1 ms)
+
+PASS tests/unit/grade
+CalculationService.te
+st.js
+  GradeCalculationSer
+vice
+    
+calculateLetterGrade
+      ÔêÜ should 
+return AA for 90-100 
+(1 ms)
+      ÔêÜ should 
+return BA for 85-89
+      ÔêÜ should 
+return BB for 80-84 
+(1 ms)
+      ÔêÜ should 
+return CB for 75-79
+      ÔêÜ should 
+return CC for 70-74 
+(1 ms)
+      ÔêÜ should 
+return DC for 65-69
+      ÔêÜ should 
+return DD for 60-64 
+(1 ms)
+      ÔêÜ should 
+return FD for 50-59
+      ÔêÜ should 
+return FF for below 
+50 (1 ms)
+      ÔêÜ should 
+handle null/undefined
+      ÔêÜ should 
+handle string 
+numbers (1 ms)
+    getGradePoint
+      ÔêÜ should 
+return correct grade 
+points (1 ms)
+      ÔêÜ should 
+return 0 for unknown 
+grades
+    
+calculateAverageGrade
+      ÔêÜ should 
+calculate average 
+with all components 
+(1 ms)
+      ÔêÜ should 
+calculate average 
+without homework
+      ÔêÜ should 
+handle zero grades 
+(1 ms)
+      ÔêÜ should 
+handle perfect scores
+      ÔêÜ should 
+handle custom 
+weights (1 ms)
+    updateGrades
+      ÔêÜ should be 
+a function
+    
+calculateSemesterGPA
+      ÔêÜ should be 
+a function (1 ms)
+    calculateCGPA
+      ÔêÜ should be 
+a function
+    getTranscript
+      ÔêÜ should be 
+a function (1 ms)
+
+PASS tests/unit/sched
+ulingService.test.js
+  Scheduling Service 
+- CSP Algorithm Unit 
+Tests
+    solveCSP - Small 
+Example
+      ÔêÜ should 
+solve simple 
+scheduling problem 
+with 2 sections and 
+2 classrooms (2 ms)
+      ÔêÜ should 
+handle no solution 
+scenario when 
+constraints are too 
+strict
+      ÔêÜ should 
+prioritize required 
+courses
+      ÔêÜ should 
+check classroom 
+capacity constraint 
+(1 ms)
+      ÔêÜ should 
+prevent instructor 
+double-booking (1 ms)
+      ÔêÜ should 
+prevent classroom 
+double-booking (1 ms)
+      ÔêÜ should 
+prevent student 
+schedule conflicts 
+(1 ms)
+      ÔêÜ should 
+calculate statistics 
+correctly
+
+PASS tests/unit/userS
+ervice.test.js
+  User Service - 
+Unit Tests
+    getProfile
+      ÔêÜ should 
+successfully get 
+user profile (2 ms)
+      ÔêÜ should 
+include student data 
+when user is a 
+student (1 ms)
+      ÔêÜ should 
+include faculty data 
+when user is a 
+faculty member (1 ms)
+      ÔêÜ should 
+throw error if user 
+not found (9 ms)
+    updateProfile
+      ÔêÜ should 
+successfully update 
+user profile (1 ms)
+      ÔêÜ should 
+update only provided 
+fields (1 ms)
+      ÔêÜ should 
+handle phone number 
+update to null
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+    
+updateProfilePicture
+      ÔêÜ should 
+successfully update 
+profile picture (1 
+ms)
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+    changePassword
+      ÔêÜ should 
+successfully change 
+password with valid 
+current password (1 
+ms)
+      ÔêÜ should 
+throw error if 
+current password is 
+incorrect (1 ms)
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+      ÔêÜ should 
+invalidate all 
+refresh tokens after 
+password change (1 
+ms)
+    getAllUsers
+      ÔêÜ should 
+successfully get all 
+users with default 
+pagination (1 ms)
+      ÔêÜ should 
+filter users by role 
+(1 ms)
+      ÔêÜ should 
+filter users by 
+department
+      ÔêÜ should 
+handle custom 
+pagination
+      ÔêÜ should 
+handle custom 
+sorting (1 ms)
+      ÔêÜ should 
+calculate pagination 
+correctly (1 ms)
+      Ôùï skipped 
+should search users 
+by name or email
+    getUserById
+      ÔêÜ should 
+successfully get 
+user by ID (1 ms)
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+      ÔêÜ should 
+include student and 
+faculty 
+relationships (1 ms)
+    updateUserStatus
+      ÔêÜ should 
+successfully 
+activate user (1 ms)
+      ÔêÜ should 
+successfully 
+deactivate user
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+    deleteUser
+      ÔêÜ should 
+successfully delete 
+(deactivate) user
+      ÔêÜ should 
+throw error if user 
+not found (1 ms)
+      ÔêÜ should 
+perform soft delete 
+by deactivating user 
+(1 ms)
+
+PASS tests/unit/sched
+uleConflictService.te
+st.js
+  ScheduleConflictSer
+vice
+    timeToMinutes
+      ÔêÜ should 
+convert time string 
+to minutes since 
+midnight (1 ms)
+      ÔêÜ should 
+handle edge cases (1 
+ms)
+      ÔêÜ should 
+handle different 
+time formats (1 ms)
+    timeSlotsOverlap
+      ÔêÜ should 
+detect overlapping 
+time slots on same 
+day
+      ÔêÜ should 
+detect 
+non-overlapping time 
+slots on same day (1 
+ms)
+      ÔêÜ should 
+return false for 
+different days
+      ÔêÜ should 
+handle 
+case-insensitive day 
+comparison (1 ms)
+      ÔêÜ should 
+detect complete 
+overlap (one slot 
+inside another)
+      ÔêÜ should 
+detect exact same 
+time slot
+    parseSchedule
+      ÔêÜ should 
+return empty array 
+for null/undefined 
+(1 ms)
+      ÔêÜ should 
+return array as is
+      ÔêÜ should 
+parse JSON string (1 
+ms)
+      ÔêÜ should 
+handle invalid JSON 
+string
+    
+checkScheduleConflict
+      ÔêÜ should 
+return no conflict 
+when new section has 
+no schedule (10 ms)
+      ÔêÜ should 
+detect conflict with 
+existing enrolled 
+section in same 
+semester (1 ms)
+    
+getStudentSchedule
+      ÔêÜ should 
+return sorted weekly 
+schedule for student 
+(1 ms)
+
+PASS tests/unit/newre
+lic.test.js
+  New Relic 
+Configuration
+    isAvailable
+      ÔêÜ should 
+return false when 
+not initialized (1 
+ms)
+    recordCustomEvent
+      ÔêÜ should not 
+throw when not 
+initialized (1 ms)
+    
+addCustomAttributes
+      ÔêÜ should not 
+throw when not 
+initialized
+    
+setTransactionName
+      ÔêÜ should not 
+throw when not 
+initialized
+    noticeError
+      ÔêÜ should not 
+throw when not 
+initialized (1 ms)
+    
+startWebTransaction
+      ÔêÜ should 
+execute handler when 
+not initialized (1 
+ms)
+    startBackgroundTr
+ansaction
+      ÔêÜ should 
+execute handler when 
+not initialized (1 
+ms)
+    getBrowserTimingH
+eader
+      ÔêÜ should 
+return empty string 
+when not initialized
+    
+newRelicMiddleware
+      ÔêÜ should 
+call next (1 ms)
+
+PASS tests/unit/smsSe
+rvice.test.js
+  SMS Service
+    isAvailable
+      ÔêÜ should 
+return false when 
+not initialized (1 
+ms)
+    getProviderInfo
+      ÔêÜ should 
+return provider info
+    sendSms
+      ÔêÜ should 
+return error when 
+service not 
+initialized
+    
+sendNotificationSms
+      ÔêÜ should 
+handle 
+attendance_warning 
+type (1 ms)
+      ÔêÜ should 
+handle 
+payment_reminder 
+type (1 ms)
+      ÔêÜ should 
+handle 
+event_reminder type 
+(1 ms)
+
+----------------------------|---------|----------|---------|---------|-----------------------------------------------
+File                        | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                             
+----------------------------|---------|----------|---------|---------|-----------------------------------------------
+All files                   |   90.54 |    77.51 |   91.66 |   90.65 |                                               
+ controllers                |   86.79 |    72.97 |     100 |      88 |                                               
+  announcementController.js |   86.79 |    72.97 |     100 |      88 | 60-61,137-138,169-170                         
+ services                   |   91.45 |    79.68 |   94.11 |    91.3 |                                               
+  authService.js            |   88.23 |    75.94 |    87.5 |   88.15 | 45,53,192,210-211,218-221,387-401,435,448-449 
+  userService.js            |   97.53 |    85.71 |     100 |   97.43 | 151,156                                       
+ utils                      |   88.88 |       50 |      50 |   88.88 |                                               
+  logger.js                 |   88.88 |       50 |      50 |   88.88 | 42                                            
+----------------------------|---------|----------|---------|---------|-----------------------------------------------
+Test Suites: 7 
+failed, 7 passed, 14 
+total
+Tests:       28 
+failed, 16 skipped, 
+214 passed, 258 total
+Snapshots:   0 total
+Time:        3.507 s
+Ran all test suites.
