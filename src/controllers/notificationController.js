@@ -1,6 +1,7 @@
 const db = require('../models');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 
 const { Notification, NotificationPreference, User } = db;
 
@@ -226,6 +227,7 @@ const getPreferences = async (req, res) => {
         // Create default preferences if not exists
         if (!preferences) {
             preferences = await NotificationPreference.create({
+                id: uuidv4(),
                 user_id: userId
             });
         }
@@ -284,6 +286,7 @@ const updatePreferences = async (req, res) => {
 
         if (!preferences) {
             preferences = await NotificationPreference.create({
+                id: uuidv4(),
                 user_id: userId
             });
         }
@@ -339,6 +342,7 @@ const updatePreferences = async (req, res) => {
 const createNotification = async (userId, title, message, category = 'system', type = 'info', actionUrl = null, metadata = null) => {
     try {
         const notification = await Notification.create({
+            id: uuidv4(),
             user_id: userId,
             title,
             message,
@@ -364,6 +368,7 @@ const createNotification = async (userId, title, message, category = 'system', t
 const createBulkNotifications = async (userIds, title, message, category = 'system', type = 'info', actionUrl = null, metadata = null) => {
     try {
         const notifications = userIds.map(userId => ({
+            id: uuidv4(),
             user_id: userId,
             title,
             message,
