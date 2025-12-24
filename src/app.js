@@ -103,9 +103,14 @@ const startServer = async () => {
         await db.sequelize.authenticate();
         logger.info('✅ Database connection established');
 
-        // Sync database (create tables if not exist)
-        await db.sequelize.sync({ alter: false });
-        logger.info('✅ Database synchronized');
+        // Sync database only in development/test environments
+        // In production, use migrations instead of sync
+        if (process.env.NODE_ENV !== 'production') {
+            await db.sequelize.sync({ alter: false });
+            logger.info('✅ Database synchronized');
+        } else {
+            logger.info('⚠️  Skipping database sync in production (use migrations)');
+        }
 
         // Initialize background jobs
         if (process.env.NODE_ENV !== 'test') {
