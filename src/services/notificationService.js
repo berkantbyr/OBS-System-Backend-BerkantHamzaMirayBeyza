@@ -1,10 +1,86 @@
 const emailService = require('./emailService');
 const logger = require('../utils/logger');
+const db = require('../models');
+const { Notification } = db;
 
 /**
  * NotificationService - Handles email, push, and SMS notifications
  */
 class NotificationService {
+  /**
+   * Create and save notification to database
+   * @param {string} userId - User ID
+   * @param {Object} notificationData - Notification details
+   * @returns {Object} Created notification
+   */
+  async createNotification(userId, notificationData) {
+    try {
+      const notification = await Notification.create({
+        user_id: userId,
+        title: notificationData.title,
+        message: notificationData.message,
+        category: notificationData.category || 'system',
+        type: notificationData.type || 'info',
+        read: false,
+        action_url: notificationData.actionUrl || null,
+      });
+      logger.info(`Notification created for user ${userId}: ${notificationData.title}`);
+      return notification;
+    } catch (error) {
+      logger.error('Create notification error:', error);
+      // Don't throw - notification failures shouldn't break the flow
+      return null;
+    }
+  }
+
+  /**
+   * Send enrollment approval notification
+   * @param {string} userId - User ID
+   * @param {Object} course - Course details
+   */
+  async sendEnrollmentApprovalNotification(userId, course) {
+    await this.createNotification(userId, {
+      title: 'Ders Kaydı Onaylandı',
+      message: `${course.code} - ${course.name} dersine kaydınız onaylandı.`,
+      category: 'academic',
+      type: 'success',
+      actionUrl: '/my-courses',
+    });
+  }
+
+  /**
+   * Send enrollment rejection notification
+   * @param {string} userId - User ID
+   * @param {Object} course - Course details
+   * @param {string} reason - Rejection reason
+   */
+  async sendEnrollmentRejectionNotification(userId, course, reason) {
+    await this.createNotification(userId, {
+      title: 'Ders Kaydı Reddedildi',
+      message: `${course.code} - ${course.name} dersine kaydınız reddedildi. ${reason ? `Sebep: ${reason}` : ''}`,
+      category: 'academic',
+      type: 'error',
+      actionUrl: '/course-registration',
+    });
+  }
+
+  /**
+   * Send attendance warning notification
+   * @param {string} userId - User ID
+   * @param {Object} course - Course details
+   * @param {number} absenceCount - Number of absences
+   * @param {number} limit - Maximum allowed absences
+   */
+  async sendAttendanceWarningNotification(userId, course, absenceCount, limit) {
+    await this.createNotification(userId, {
+      title: 'Devamsızlık Uyarısı',
+      message: `${course.code} - ${course.name} dersinde ${absenceCount}/${limit} devamsızlığa ulaştınız. Dikkatli olunuz!`,
+      category: 'attendance',
+      type: 'warning',
+      actionUrl: `/courses/${course.sectionId}/attendance`,
+    });
+  }
+
   /**
    * Send meal reservation confirmation
    * @param {Object} user - User object

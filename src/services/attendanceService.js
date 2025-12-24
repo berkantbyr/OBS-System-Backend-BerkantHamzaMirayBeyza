@@ -156,7 +156,7 @@ class AttendanceService {
       where: {
         student_id: studentId,
         section_id: session.section_id,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
     });
 
@@ -334,7 +334,7 @@ class AttendanceService {
     const enrollments = await Enrollment.findAll({
       where: {
         section_id: sectionId,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
       include: [
         {

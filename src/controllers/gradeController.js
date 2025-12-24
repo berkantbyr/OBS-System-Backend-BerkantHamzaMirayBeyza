@@ -453,8 +453,10 @@ const enterGrades = async (req, res) => {
     // Send notification to student (async, don't wait for it)
     try {
       const { sendGradeUpdateEmail } = require('../services/emailService');
+      const { createNotification } = require('./notificationController');
       const studentUser = await db.User.findByPk(enrollment.student.user_id);
       if (studentUser && studentUser.email) {
+        // Send email notification
         sendGradeUpdateEmail(
           studentUser.email,
           studentUser.first_name,
@@ -470,10 +472,22 @@ const enterGrades = async (req, res) => {
         ).catch((err) => {
           logger.warn(`Failed to send grade update email to ${studentUser.email}:`, err.message);
         });
+
+        // Create in-app notification
+        createNotification(
+          studentUser.id,
+          'Not Güncellendi',
+          `${enrollment.section.course.code} - ${enrollment.section.course.name} dersiniz için notlar girildi. Ortalama: ${updatedEnrollment.average_grade?.toFixed(2) || '-'}, Harf Notu: ${updatedEnrollment.letter_grade || '-'}`,
+          'academic',
+          'info',
+          '/grades'
+        ).catch((err) => {
+          logger.warn(`Failed to create notification for user ${studentUser.id}:`, err.message);
+        });
       }
     } catch (emailError) {
-      logger.warn('Error sending grade update email:', emailError.message);
-      // Don't fail the request if email fails
+      logger.warn('Error sending grade update notification:', emailError.message);
+      // Don't fail the request if notification fails
     }
 
     res.json({
@@ -580,7 +594,9 @@ const bulkEnterGrades = async (req, res) => {
         // Send notification to student (async, don't wait for it)
         try {
           const { sendGradeUpdateEmail } = require('../services/emailService');
+          const { createNotification } = require('./notificationController');
           if (enrollment.student?.user?.email) {
+            // Send email notification
             sendGradeUpdateEmail(
               enrollment.student.user.email,
               enrollment.student.user.first_name,
@@ -596,9 +612,21 @@ const bulkEnterGrades = async (req, res) => {
             ).catch((err) => {
               logger.warn(`Failed to send grade update email to ${enrollment.student.user.email}:`, err.message);
             });
+
+            // Create in-app notification
+            createNotification(
+              enrollment.student.user.id,
+              'Not Güncellendi',
+              `${enrollment.section.course.code} - ${enrollment.section.course.name} dersiniz için notlar girildi. Harf Notu: ${updated.letter_grade || '-'}`,
+              'academic',
+              'info',
+              '/grades'
+            ).catch((err) => {
+              logger.warn(`Failed to create notification for user ${enrollment.student.user.id}:`, err.message);
+            });
           }
         } catch (emailError) {
-          logger.warn('Error sending grade update email:', emailError.message);
+          logger.warn('Error sending grade update notification:', emailError.message);
         }
 
         results.push({

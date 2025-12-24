@@ -91,14 +91,14 @@ const createSession = async (req, res) => {
 
     // Get enrolled student count
     const enrolledCount = await Enrollment.count({
-      where: { section_id, status: 'enrolled' },
+      where: { section_id, status: { [Op.in]: ['enrolled', 'completed'] } },
     });
 
     // Send notifications to enrolled students (async, don't wait for it)
     try {
       const { sendAttendanceSessionEmail } = require('../services/emailService');
       const enrollments = await Enrollment.findAll({
-        where: { section_id, status: 'enrolled' },
+        where: { section_id, status: { [Op.in]: ['enrolled', 'completed'] } },
         include: [
           {
             model: Student,
@@ -215,7 +215,7 @@ const getSession = async (req, res) => {
 
     // Get enrolled count
     const enrolledCount = await Enrollment.count({
-      where: { section_id: session.section_id, status: 'enrolled' },
+      where: { section_id: session.section_id, status: { [Op.in]: ['enrolled', 'completed'] } },
     });
 
     res.json({
@@ -375,7 +375,7 @@ const getInstructorSessions = async (req, res) => {
         sessions.map(async (s) => {
           const recordCount = await AttendanceRecord.count({ where: { session_id: s.id } });
           const enrolledCount = await Enrollment.count({
-            where: { section_id: s.section_id, status: 'enrolled' },
+            where: { section_id: s.section_id, status: { [Op.in]: ['enrolled', 'completed'] } },
           });
 
           return {
@@ -499,7 +499,7 @@ const getMyAttendance = async (req, res) => {
     // Get enrolled courses
     logger.info(`🔍 Fetching enrollments for student: ${student.id}`);
     const enrollments = await Enrollment.findAll({
-      where: { student_id: student.id, status: 'enrolled' },
+      where: { student_id: student.id, status: { [Op.in]: ['enrolled', 'completed'] } },
       include: [
         {
           model: CourseSection,
@@ -654,9 +654,9 @@ const getMySessions = async (req, res) => {
       });
     }
 
-    // Get enrolled sections
+    // Get enrolled/completed sections
     const enrollments = await Enrollment.findAll({
-      where: { student_id: student.id, status: 'enrolled' },
+      where: { student_id: student.id, status: { [Op.in]: ['enrolled', 'completed'] } },
       include: [
         {
           model: CourseSection,
@@ -750,9 +750,9 @@ const getActiveSessions = async (req, res) => {
       });
     }
 
-    // Get enrolled sections
+    // Get enrolled/completed sections
     const enrollments = await Enrollment.findAll({
-      where: { student_id: student.id, status: 'enrolled' },
+      where: { student_id: student.id, status: { [Op.in]: ['enrolled', 'completed'] } },
       attributes: ['section_id'],
     });
 
@@ -930,7 +930,7 @@ const getCurrentQRCode = async (req, res) => {
       where: {
         student_id: student.id,
         section_id: session.section_id,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
     });
 

@@ -26,7 +26,7 @@ class ScheduleConflictService {
     const currentEnrollments = await Enrollment.findAll({
       where: {
         student_id: studentId,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
         section_id: { [Op.ne]: newSectionId },
       },
       include: [
@@ -145,7 +145,7 @@ class ScheduleConflictService {
     const enrollments = await Enrollment.findAll({
       where: {
         student_id: studentId,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
       include: [
         {
@@ -168,7 +168,7 @@ class ScheduleConflictService {
       const section = enrollment.section;
       // Skip if no section data
       if (!section || !section.course) continue;
-      
+
       const slots = this.parseSchedule(section.schedule_json);
 
       for (const slot of slots) {

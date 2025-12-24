@@ -55,6 +55,14 @@ db.EventRegistration = require('./EventRegistration')(sequelize, Sequelize.DataT
 db.Schedule = require('./Schedule')(sequelize, Sequelize.DataTypes);
 db.Reservation = require('./Reservation')(sequelize, Sequelize.DataTypes);
 
+// Part 4 - Notifications & Analytics
+db.Notification = require('./Notification')(sequelize, Sequelize.DataTypes);
+db.NotificationPreference = require('./NotificationPreference')(sequelize, Sequelize.DataTypes);
+
+// Part 4 - IoT Sensors (Bonus)
+db.Sensor = require('./Sensor')(sequelize, Sequelize.DataTypes);
+db.SensorData = require('./SensorData')(sequelize, Sequelize.DataTypes);
+
 // ============================================
 // Define associations
 // ============================================
@@ -448,8 +456,46 @@ db.Reservation.belongsTo(db.User, {
   as: 'user',
 });
 
+// ============================================
+// Part 4 - Notification & Sensor Associations
+// ============================================
+
+// User - Notification (One-to-Many)
+db.User.hasMany(db.Notification, {
+  foreignKey: 'user_id',
+  as: 'notifications',
+  onDelete: 'CASCADE',
+});
+db.Notification.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// User - NotificationPreference (One-to-One)
+db.User.hasOne(db.NotificationPreference, {
+  foreignKey: 'user_id',
+  as: 'notificationPreference',
+  onDelete: 'CASCADE',
+});
+db.NotificationPreference.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// Sensor - SensorData (One-to-Many)
+db.Sensor.hasMany(db.SensorData, {
+  foreignKey: 'sensor_id',
+  as: 'readings',
+  onDelete: 'CASCADE',
+});
+db.SensorData.belongsTo(db.Sensor, {
+  foreignKey: 'sensor_id',
+  as: 'sensor',
+});
+
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 
 module.exports = db;
+

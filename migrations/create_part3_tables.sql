@@ -164,3 +164,40 @@ CREATE TABLE IF NOT EXISTS reservations (
   INDEX idx_classroom_date (classroom_id, date, start_time, end_time),
   INDEX idx_user (user_id)
 );
+
+-- 10. Academic Calendar table
+CREATE TABLE IF NOT EXISTS academic_calendar (
+  id CHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  start_date DATE NOT NULL,
+  end_date DATE,
+  event_type ENUM('semester_start', 'semester_end', 'registration', 'drop_period', 'midterm', 'final', 'holiday', 'makeup_exam', 'graduation', 'other') NOT NULL DEFAULT 'other',
+  semester ENUM('fall', 'spring', 'summer'),
+  year INT,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_start_date (start_date),
+  INDEX idx_event_type (event_type),
+  INDEX idx_semester_year (semester, year)
+);
+
+-- 11. Announcements table
+CREATE TABLE IF NOT EXISTS announcements (
+  id CHAR(36) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  author_id CHAR(36),
+  type ENUM('info', 'warning', 'success', 'urgent') NOT NULL DEFAULT 'info',
+  target_audience ENUM('all', 'students', 'faculty', 'admin') NOT NULL DEFAULT 'all',
+  is_active BOOLEAN DEFAULT TRUE,
+  expires_at DATETIME,
+  priority INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_active (is_active),
+  INDEX idx_target (target_audience),
+  INDEX idx_priority (priority)
+);

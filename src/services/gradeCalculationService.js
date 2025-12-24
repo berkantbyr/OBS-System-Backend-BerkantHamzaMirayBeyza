@@ -29,9 +29,9 @@ class GradeCalculationService {
    */
   calculateLetterGrade(average) {
     if (average === null || average === undefined) return null;
-    
+
     const numAvg = parseFloat(average);
-    
+
     if (numAvg >= 90) return 'AA';
     if (numAvg >= 85) return 'BA';
     if (numAvg >= 80) return 'BB';
@@ -252,9 +252,11 @@ class GradeCalculationService {
   async updateStudentGPA(studentId) {
     const { cgpa, totalCredits } = await this.calculateCGPA(studentId);
 
+    // Update both gpa and cgpa fields to ensure analytics can read the data
     await Student.update(
       {
-        cgpa,
+        gpa: cgpa,      // For analytics (uses gpa field)
+        cgpa,           // For transcript (uses cgpa field)
         total_credits: totalCredits,
       },
       { where: { id: studentId } }

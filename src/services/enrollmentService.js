@@ -2,6 +2,7 @@ const db = require('../models');
 const { Enrollment, CourseSection, Course, Student } = db;
 const prerequisiteService = require('./prerequisiteService');
 const scheduleConflictService = require('./scheduleConflictService');
+const notificationService = require('./notificationService');
 const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 
@@ -257,8 +258,18 @@ class EnrollmentService {
 
       // Get student info for response
       const student = await Student.findByPk(enrollment.student_id, {
-        include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] }],
+        include: [{ model: db.User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }],
       });
+
+      // Send notification to student
+      try {
+        await notificationService.sendEnrollmentApprovalNotification(student.user.id, {
+          code: enrollment.section.course.code,
+          name: enrollment.section.course.name,
+        });
+      } catch (notifError) {
+        logger.warn('Failed to send enrollment approval notification:', notifError.message);
+      }
 
       return {
         success: true,
@@ -326,8 +337,18 @@ class EnrollmentService {
 
       // Get student info for response
       const student = await Student.findByPk(enrollment.student_id, {
-        include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name', 'email'] }],
+        include: [{ model: db.User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }],
       });
+
+      // Send notification to student
+      try {
+        await notificationService.sendEnrollmentRejectionNotification(student.user.id, {
+          code: enrollment.section.course.code,
+          name: enrollment.section.course.name,
+        }, reason);
+      } catch (notifError) {
+        logger.warn('Failed to send enrollment rejection notification:', notifError.message);
+      }
 
       return {
         success: true,
@@ -557,7 +578,7 @@ class EnrollmentService {
     return await Enrollment.findAll({
       where: {
         section_id: sectionId,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
       include: [
         {
@@ -582,7 +603,7 @@ class EnrollmentService {
   async checkEnrollmentEligibility(studentId, sectionId) {
     try {
       logger.info(`🔍 Checking eligibility - Student: ${studentId}, Section: ${sectionId}`);
-      
+
       const section = await CourseSection.findByPk(sectionId, {
         include: [{ model: Course, as: 'course' }],
       });
@@ -601,7 +622,7 @@ class EnrollmentService {
         scheduleConflict: await scheduleConflictService.checkScheduleConflict(studentId, sectionId),
         existingEnrollment: await Enrollment.findOne({ where: { student_id: studentId, section_id: sectionId } }),
       };
-      
+
       logger.info(`✅ Eligibility checks completed:`, {
         isActive: checks.isActive,
         hasCapacity: checks.hasCapacity,

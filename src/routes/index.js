@@ -25,6 +25,11 @@ const eventRoutes = require('./eventRoutes');
 const schedulingRoutes = require('./schedulingRoutes');
 const reservationRoutes = require('./reservationRoutes');
 
+// Part 4 - Analytics, Notifications, Sensors
+const analyticsRoutes = require('./analyticsRoutes');
+const notificationRoutes = require('./notificationRoutes');
+const sensorRoutes = require('./sensorRoutes');
+
 // Mount routes
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
@@ -49,12 +54,17 @@ router.use('/events', eventRoutes);
 router.use('/scheduling', schedulingRoutes);
 router.use('/reservations', reservationRoutes);
 
+// Part 4 - Analytics, Notifications, Sensors Routes
+router.use('/analytics', analyticsRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/sensors', sensorRoutes);
+
 // Health check endpoint
 router.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'API is running',
-    version: '2.1.0',
+    version: '4.0.0',
     timestamp: new Date().toISOString(),
     features: {
       authentication: true,
@@ -71,6 +81,9 @@ router.get('/health', (req, res) => {
       wallet: true,
       events: true,
       scheduling: true,
+      analytics: true,
+      notifications: true,
+      sensors: true,
     },
   });
 });

@@ -1,7 +1,7 @@
 module.exports = (sequelize, DataTypes) => {
     const Announcement = sequelize.define('Announcement', {
         id: {
-            type: DataTypes.CHAR(36),
+            type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true,
         },
@@ -14,8 +14,8 @@ module.exports = (sequelize, DataTypes) => {
             allowNull: false,
         },
         author_id: {
-            type: DataTypes.CHAR(36),
-            allowNull: false,
+            type: DataTypes.UUID,
+            allowNull: true, // Made nullable for seeding without author
             references: {
                 model: 'users',
                 key: 'id',

@@ -43,7 +43,7 @@ const createExcuseRequest = async (req, res) => {
       where: {
         student_id: student.id,
         section_id: session.section_id,
-        status: 'enrolled',
+        status: { [Op.in]: ['enrolled', 'completed'] },
       },
     });
 
@@ -300,6 +300,31 @@ const approveExcuseRequest = async (req, res) => {
 
     logger.info(`Excuse request approved: ${id} by ${req.user.id}`);
 
+    // Send notification to student
+    try {
+      const { createNotification } = require('./notificationController');
+      const student = await Student.findByPk(excuseRequest.student_id, {
+        include: [{ model: db.User, as: 'user' }],
+      });
+
+      if (student && student.user) {
+        const session = await AttendanceSession.findByPk(excuseRequest.session_id, {
+          include: [{ model: CourseSection, as: 'section', include: [{ model: Course, as: 'course' }] }],
+        });
+
+        await createNotification(
+          student.user.id,
+          'Mazeret Talebiniz Onaylandı',
+          `${session?.section?.course?.code || ''} - ${session?.section?.course?.name || ''} dersi için ${excuseRequest.session?.date || ''} tarihli mazeret talebiniz onaylandı.`,
+          'attendance',
+          'success',
+          '/attendance/my-attendance'
+        );
+      }
+    } catch (notifError) {
+      logger.warn('Error sending excuse approval notification:', notifError.message);
+    }
+
     res.json({
       success: true,
       message: 'Mazeret talebi onaylandı',
@@ -372,6 +397,31 @@ const rejectExcuseRequest = async (req, res) => {
     await excuseRequest.save();
 
     logger.info(`Excuse request rejected: ${id} by ${req.user.id}`);
+
+    // Send notification to student
+    try {
+      const { createNotification } = require('./notificationController');
+      const student = await Student.findByPk(excuseRequest.student_id, {
+        include: [{ model: db.User, as: 'user' }],
+      });
+
+      if (student && student.user) {
+        const session = await AttendanceSession.findByPk(excuseRequest.session_id, {
+          include: [{ model: CourseSection, as: 'section', include: [{ model: Course, as: 'course' }] }],
+        });
+
+        await createNotification(
+          student.user.id,
+          'Mazeret Talebiniz Reddedildi',
+          `${session?.section?.course?.code || ''} - ${session?.section?.course?.name || ''} dersi için mazeret talebiniz reddedildi.${notes ? ' Sebep: ' + notes : ''}`,
+          'attendance',
+          'warning',
+          '/attendance/my-attendance'
+        );
+      }
+    } catch (notifError) {
+      logger.warn('Error sending excuse rejection notification:', notifError.message);
+    }
 
     res.json({
       success: true,

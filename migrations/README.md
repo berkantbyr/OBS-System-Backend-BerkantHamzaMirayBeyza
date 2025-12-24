@@ -2,6 +2,23 @@
 
 Bu klasorde veritabani guncellemeleri icin SQL scriptleri bulunmaktadir.
 
+## Part 1 & 2 Tablolari
+
+### create_part1_2_tables.sql
+Temel sistem tablolari (Kullanici, Ogrenci, Akademisyen) ve akademik yonetim (Dersler, Bolumler) tablolari.
+
+**Tablolar:**
+1. `departments`
+2. `users`
+3. `students`
+4. `faculty`
+5. `classrooms`
+6. `courses`
+7. `course_sections`
+8. `enrollments`
+9. `course_prerequisites`
+10. `refresh_tokens`, `password_resets`, `email_verifications`
+
 ## Part 3 Tablolari
 
 ### create_part3_tables.sql
@@ -17,11 +34,28 @@ Part 3 (Yemek Servisi, Cuzdan, Etkinlik ve Programlama) icin gerekli tum tablola
 7. `event_registrations` - Etkinlik kayitlari (waitlist destekli)
 8. `schedules` - Ders programlari
 9. `reservations` - Derslik rezervasyonlari
+10. `academic_calendar` - Akademik takvim
+11. `announcements` - Duyurular
 
 **Onemli Notlar:**
 - `meal_reservations` tablosunda transfer alanlari zaten dahil edilmistir
 - Tum foreign key constraint'ler tanimlanmistir
 - Index'ler performans icin eklenmistir
+
+## Part 4 Tablolari
+
+### create_part4_tables.sql
+Part 4 (Bildirimler, Sensorler ve IoT) icin gerekli tablolari olusturur:
+
+**Tablolar:**
+10. `notification_preferences` - Kullanici bildirim tercihler
+11. `notifications` - Sistem bildirimleri
+12. `sensors` - IoT sensorleri
+13. `sensor_data` - Sensor verileri
+
+**Onemli Notlar:**
+- `read` kolonu `notifications` tablosunda backtick ile kullanilmistir
+- Sensor tipleri ve durumu ENUM olarak tanimlanmistir
 
 ## Google Cloud SQL'de Calistirma
 
