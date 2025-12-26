@@ -444,6 +444,7 @@ const simulateSensorData = async (req, res) => {
             sensors = await Sensor.findAll({ where: { status: 'active' } });
         }
 
+        // Sensörler için veri simüle et
         for (const sensor of sensors) {
             let value;
 
