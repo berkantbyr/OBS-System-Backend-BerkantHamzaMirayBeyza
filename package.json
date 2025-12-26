@@ -12,15 +12,21 @@
     "test:watch": "jest --watch",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
-    "migrate": "npx sequelize-cli db:migrate",
+    "migrate:sequelize": "npx sequelize-cli db:migrate",
     "migrate:undo": "npx sequelize-cli db:migrate:undo",
     "seed": "node src/seeders/seedPart2Data.js",
     "seed:part2": "node src/seeders/seedPart2Data.js",
+    "seed:part4": "node src/seeders/seedPart4Data.js",
     "seed:production": "node scripts/seed-production.js",
     "seed:cli": "npx sequelize-cli db:seed:all",
     "seed:undo": "npx sequelize-cli db:seed:undo:all",
     "create-admin": "node scripts/create-admin.js",
-    "create-superadmin": "node scripts/create-superadmin.js"
+    "create-superadmin": "node scripts/create-superadmin.js",
+    "create-menus": "node scripts/create-sample-menus.js",
+    "migrate": "node scripts/run-migrations.js",
+    "migrate:all": "node scripts/run-migrations.js --file migrations/create_all_tables.sql",
+    "migrate:part3": "node scripts/run-migrations.js --part 3",
+    "migrate:part4": "node scripts/run-migrations.js --part 4"
   },
   "keywords": [
     "university",

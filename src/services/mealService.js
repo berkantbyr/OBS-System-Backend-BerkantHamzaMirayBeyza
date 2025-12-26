@@ -29,14 +29,22 @@ class MealService {
 
   /**
    * Get menus with date filter
-   * @param {Object} filters - { date, cafeteria_id, meal_type }
+   * @param {Object} filters - { date, cafeteria_id, meal_type, include_drafts }
    * @returns {Array} - Array of menus
    */
   async getMenus(filters = {}) {
-    const where = { is_published: true };
+    const { Op } = require('sequelize');
+    const where = {};
+
+    // If not admin or include_drafts is false, only show published menus
+    if (!filters.include_drafts) {
+      where.is_published = true;
+    }
 
     if (filters.date) {
-      where.date = filters.date;
+      // Normalize date format (YYYY-MM-DD)
+      const dateStr = filters.date.split('T')[0]; // Remove time if present
+      where.date = dateStr;
     }
 
     if (filters.cafeteria_id) {

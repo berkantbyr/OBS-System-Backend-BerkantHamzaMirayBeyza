@@ -78,11 +78,15 @@ const seedCafeterias = async (req, res) => {
 const getMenus = async (req, res) => {
   try {
     const { date, cafeteria_id, meal_type } = req.query;
+    
+    // Admin users can see all menus (published + drafts)
+    const include_drafts = req.user && req.user.role === 'admin';
 
     const menus = await mealService.getMenus({
       date,
       cafeteria_id,
       meal_type,
+      include_drafts,
     });
 
     res.json({
