@@ -325,6 +325,7 @@ async function seed() {
     // Create test users
     console.log('👤 Test kullanıcıları oluşturuluyor...');
     const hashedPassword = await hashPassword('Test123!');
+    const superAdminPassword = await hashPassword('Admin123!');
 
     // Admin user
     const [adminUser] = await User.findOrCreate({
@@ -334,6 +335,20 @@ async function seed() {
         password_hash: hashedPassword,
         first_name: 'Admin',
         last_name: 'User',
+        role: 'admin',
+        is_active: true,
+        is_verified: true,
+      },
+    });
+
+    // Super Admin user
+    const [superAdminUser] = await User.findOrCreate({
+      where: { email: 'superadmin@test.com' },
+      defaults: {
+        email: 'superadmin@test.com',
+        password_hash: superAdminPassword,
+        first_name: 'Super',
+        last_name: 'Admin',
         role: 'admin',
         is_active: true,
         is_verified: true,
@@ -514,6 +529,7 @@ async function seed() {
     });
 
     console.log('✅ Test kullanıcıları oluşturuldu:');
+    console.log('   - Super Admin: superadmin@test.com / Admin123!');
     console.log('   - Admin: admin@university.edu.tr / Test123!');
     console.log('   - CSE Öğretim Üyesi: faculty@university.edu.tr / Test123!');
     console.log('   - MATH Öğretim Üyesi: math.faculty@university.edu.tr / Test123!');

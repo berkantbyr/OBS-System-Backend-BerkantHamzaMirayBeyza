@@ -210,13 +210,14 @@ const getLatestReadings = async (req, res) => {
     try {
         const sensors = await Sensor.findAll({
             where: { status: 'active' },
-            attributes: ['id', 'sensor_id', 'name', 'type', 'location', 'unit', 'last_reading', 'last_reading_at', 'threshold_low', 'threshold_high']
+            attributes: ['id', 'sensor_id', 'name', 'type', 'location', 'building', 'room', 'unit', 'last_reading', 'last_reading_at', 'threshold_low', 'threshold_high'],
+            order: [['name', 'ASC']]
         });
 
         // Check for alerts
         const sensorsWithAlerts = sensors.map(sensor => {
             let alertStatus = 'normal';
-            if (sensor.last_reading !== null) {
+            if (sensor.last_reading !== null && sensor.last_reading !== undefined) {
                 if (sensor.threshold_low !== null && sensor.last_reading < sensor.threshold_low) {
                     alertStatus = 'low';
                 } else if (sensor.threshold_high !== null && sensor.last_reading > sensor.threshold_high) {
@@ -350,7 +351,98 @@ const recordSensorData = async (req, res) => {
  */
 const simulateSensorData = async (req, res) => {
     try {
-        const sensors = await Sensor.findAll({ where: { status: 'active' } });
+        let sensors = await Sensor.findAll({ where: { status: 'active' } });
+
+        // If no sensors exist, create demo sensors first
+        if (sensors.length === 0) {
+            const demoSensors = [
+                {
+                    sensor_id: 'TEMP-A101',
+                    name: 'A101 Sıcaklık Sensörü',
+                    type: 'temperature',
+                    location: 'Mühendislik Fakültesi A101',
+                    building: 'Mühendislik Fakültesi',
+                    room: 'A101',
+                    unit: '°C',
+                    min_value: 15,
+                    max_value: 30,
+                    threshold_low: 18,
+                    threshold_high: 26,
+                    status: 'active',
+                },
+                {
+                    sensor_id: 'HUM-A101',
+                    name: 'A101 Nem Sensörü',
+                    type: 'humidity',
+                    location: 'Mühendislik Fakültesi A101',
+                    building: 'Mühendislik Fakültesi',
+                    room: 'A101',
+                    unit: '%',
+                    min_value: 20,
+                    max_value: 80,
+                    threshold_low: 30,
+                    threshold_high: 70,
+                    status: 'active',
+                },
+                {
+                    sensor_id: 'OCC-LIB',
+                    name: 'Kütüphane Doluluk Sensörü',
+                    type: 'occupancy',
+                    location: 'Merkez Kütüphane - Giriş',
+                    building: 'Merkez Kütüphane',
+                    room: 'Giriş',
+                    unit: 'kişi',
+                    min_value: 0,
+                    max_value: 500,
+                    threshold_high: 450,
+                    status: 'active',
+                },
+                {
+                    sensor_id: 'ENERGY-MAIN',
+                    name: 'Ana Bina Enerji Sayacı',
+                    type: 'energy',
+                    location: 'Ana Kampüs - Trafo',
+                    building: 'Ana Kampüs',
+                    unit: 'kWh',
+                    status: 'active',
+                },
+                {
+                    sensor_id: 'AIR-CAF',
+                    name: 'Yemekhane Hava Kalitesi',
+                    type: 'air_quality',
+                    location: 'Merkez Yemekhane',
+                    building: 'Merkez Yemekhane',
+                    unit: 'AQI',
+                    min_value: 0,
+                    max_value: 500,
+                    threshold_high: 100,
+                    status: 'active',
+                },
+                {
+                    sensor_id: 'LIGHT-A201',
+                    name: 'A201 Işık Sensörü',
+                    type: 'light',
+                    location: 'Mühendislik Fakültesi A201',
+                    building: 'Mühendislik Fakültesi',
+                    room: 'A201',
+                    unit: 'lux',
+                    min_value: 0,
+                    max_value: 1500,
+                    threshold_low: 300,
+                    status: 'active',
+                },
+            ];
+
+            for (const sensorData of demoSensors) {
+                const [sensor] = await Sensor.findOrCreate({
+                    where: { sensor_id: sensorData.sensor_id },
+                    defaults: sensorData
+                });
+            }
+
+            // Fetch the newly created sensors
+            sensors = await Sensor.findAll({ where: { status: 'active' } });
+        }
 
         for (const sensor of sensors) {
             let value;

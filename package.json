@@ -18,7 +18,9 @@
     "seed:part2": "node src/seeders/seedPart2Data.js",
     "seed:production": "node scripts/seed-production.js",
     "seed:cli": "npx sequelize-cli db:seed:all",
-    "seed:undo": "npx sequelize-cli db:seed:undo:all"
+    "seed:undo": "npx sequelize-cli db:seed:undo:all",
+    "create-admin": "node scripts/create-admin.js",
+    "create-superadmin": "node scripts/create-superadmin.js"
   },
   "keywords": [
     "university",
