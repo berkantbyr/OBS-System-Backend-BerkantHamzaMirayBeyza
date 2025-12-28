@@ -42,12 +42,6 @@ const getCourses = async (req, res) => {
       where,
       include: [
         { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
-        { 
-          model: Faculty, 
-          as: 'instructor', 
-          attributes: ['id'],
-          include: [{ model: User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }]
-        },
       ],
       order: [[sort_by, sort_order.toUpperCase()]],
       limit: parseInt(limit),
@@ -87,12 +81,6 @@ const getCourseById = async (req, res) => {
     const course = await Course.findByPk(id, {
       include: [
         { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
-        { 
-          model: Faculty, 
-          as: 'instructor', 
-          attributes: ['id'],
-          include: [{ model: User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }]
-        },
       ],
     });
 
@@ -197,7 +185,7 @@ const getCourseById = async (req, res) => {
  */
 const createCourse = async (req, res) => {
   try {
-    const { code, name, description, credits, ects, syllabus_url, department_id, instructor_id, prerequisites } = req.body;
+    const { code, name, description, credits, ects, syllabus_url, department_id, prerequisites } = req.body;
 
     // Check if course code already exists
     const existingCourse = await Course.findOne({ where: { code } });
@@ -219,19 +207,7 @@ const createCourse = async (req, res) => {
       }
     }
 
-    // Validate instructor (faculty)
-    if (instructor_id) {
-      const { Faculty } = require('../models');
-      const faculty = await Faculty.findByPk(instructor_id);
-      if (!faculty) {
-        return res.status(400).json({
-          success: false,
-          message: 'Geçersiz öğretim üyesi',
-        });
-      }
-    }
-
-    // Create course
+    // Create course (instructor_id is not in courses table, it's in course_sections)
     const course = await Course.create({
       code,
       name,
@@ -240,7 +216,6 @@ const createCourse = async (req, res) => {
       ects: ects || 5,
       syllabus_url,
       department_id,
-      instructor_id: instructor_id || null,
       is_active: true,
     });
 
@@ -282,7 +257,7 @@ const createCourse = async (req, res) => {
 const updateCourse = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, description, credits, ects, syllabus_url, department_id, instructor_id, is_active, prerequisites } = req.body;
+    const { code, name, description, credits, ects, syllabus_url, department_id, is_active, prerequisites } = req.body;
 
     const course = await Course.findByPk(id);
     if (!course) {
@@ -303,21 +278,7 @@ const updateCourse = async (req, res) => {
       }
     }
 
-    // Validate instructor (faculty) if provided
-    if (instructor_id !== undefined) {
-      if (instructor_id) {
-        const { Faculty } = require('../models');
-        const faculty = await Faculty.findByPk(instructor_id);
-        if (!faculty) {
-          return res.status(400).json({
-            success: false,
-            message: 'Geçersiz öğretim üyesi',
-          });
-        }
-      }
-    }
-
-    // Update course
+    // Update course (instructor_id is not in courses table, it's in course_sections)
     await course.update({
       code: code || course.code,
       name: name || course.name,
@@ -326,7 +287,6 @@ const updateCourse = async (req, res) => {
       ects: ects || course.ects,
       syllabus_url: syllabus_url !== undefined ? syllabus_url : course.syllabus_url,
       department_id: department_id !== undefined ? department_id : course.department_id,
-      instructor_id: instructor_id !== undefined ? (instructor_id || null) : course.instructor_id,
       is_active: is_active !== undefined ? is_active : course.is_active,
     });
 
@@ -441,13 +401,30 @@ const getInstructorCourses = async (req, res) => {
       });
     }
 
-    const courses = await Course.findAll({
-      where: { instructor_id: faculty.id },
+    // Get courses through sections (instructor_id is in course_sections, not courses)
+    const sections = await CourseSection.findAll({
+      where: { instructor_id: faculty.id, is_active: true },
       include: [
-        { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+        { 
+          model: Course, 
+          as: 'course',
+          include: [
+            { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+          ],
+        },
       ],
-      order: [['code', 'ASC']],
+      order: [[{ model: Course, as: 'course' }, 'code', 'ASC']],
     });
+
+    // Get unique courses
+    const courseMap = new Map();
+    sections.forEach(section => {
+      if (section.course && !courseMap.has(section.course.id)) {
+        courseMap.set(section.course.id, section.course);
+      }
+    });
+
+    const courses = Array.from(courseMap.values());
 
     res.json({
       success: true,

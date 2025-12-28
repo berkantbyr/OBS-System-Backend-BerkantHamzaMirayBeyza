@@ -171,15 +171,8 @@ db.Course.belongsTo(db.Department, {
   as: 'department',
 });
 
-// Faculty - Course (One-to-Many)
-db.Faculty.hasMany(db.Course, {
-  foreignKey: 'instructor_id',
-  as: 'courses',
-});
-db.Course.belongsTo(db.Faculty, {
-  foreignKey: 'instructor_id',
-  as: 'instructor',
-});
+// Note: Course does not have instructor_id - instructors are assigned to sections (course_sections table)
+// Faculty - CourseSection relationship is defined below
 
 // Course - CourseSection (One-to-Many)
 db.Course.hasMany(db.CourseSection, {
