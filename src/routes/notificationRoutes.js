@@ -57,4 +57,25 @@ router.put('/:id/read', notificationController.markAsRead);
  */
 router.delete('/:id', notificationController.deleteNotification);
 
+/**
+ * @route   POST /api/v1/notifications/push/subscribe
+ * @desc    Subscribe to push notifications
+ * @access  Authenticated users
+ */
+router.post('/push/subscribe', notificationController.subscribeToPush);
+
+/**
+ * @route   POST /api/v1/notifications/push/unsubscribe
+ * @desc    Unsubscribe from push notifications
+ * @access  Authenticated users
+ */
+router.post('/push/unsubscribe', notificationController.unsubscribeFromPush);
+
+/**
+ * @route   GET /api/v1/notifications/push/public-key
+ * @desc    Get VAPID public key for client subscription
+ * @access  Authenticated users
+ */
+router.get('/push/public-key', notificationController.getPublicKey);
+
 module.exports = router;

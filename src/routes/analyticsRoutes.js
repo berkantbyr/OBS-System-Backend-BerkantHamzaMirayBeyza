@@ -50,4 +50,9 @@ router.get('/events', analyticsController.getEventAnalytics);
  */
 router.get('/export/:type', analyticsController.exportReport);
 
+// Attendance Predictions
+router.get('/attendance/predictions/student/:studentId', analyticsController.getStudentAttendancePrediction);
+router.get('/attendance/predictions/section/:sectionId', analyticsController.getSectionAttendancePrediction);
+router.get('/attendance/predictions/at-risk/:sectionId', analyticsController.getAtRiskStudents);
+
 module.exports = router;

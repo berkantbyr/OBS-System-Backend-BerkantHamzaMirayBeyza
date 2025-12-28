@@ -29,6 +29,7 @@ db.Department = require('./Department')(sequelize, Sequelize.DataTypes);
 db.RefreshToken = require('./RefreshToken')(sequelize, Sequelize.DataTypes);
 db.PasswordReset = require('./PasswordReset')(sequelize, Sequelize.DataTypes);
 db.EmailVerification = require('./EmailVerification')(sequelize, Sequelize.DataTypes);
+db.UserActivityLog = require('./UserActivityLog')(sequelize, Sequelize.DataTypes);
 
 // Part 2 - Academic Management Models
 db.Course = require('./Course')(sequelize, Sequelize.DataTypes);
@@ -62,6 +63,9 @@ db.NotificationPreference = require('./NotificationPreference')(sequelize, Seque
 // Part 4 - IoT Sensors (Bonus)
 db.Sensor = require('./Sensor')(sequelize, Sequelize.DataTypes);
 db.SensorData = require('./SensorData')(sequelize, Sequelize.DataTypes);
+
+// Push Subscriptions
+db.PushSubscription = require('./PushSubscription')(sequelize, Sequelize.DataTypes);
 
 // ============================================
 // Define associations
@@ -138,6 +142,17 @@ db.User.hasMany(db.EmailVerification, {
   onDelete: 'CASCADE',
 });
 db.EmailVerification.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// User - UserActivityLog (One-to-Many)
+db.User.hasMany(db.UserActivityLog, {
+  foreignKey: 'user_id',
+  as: 'activityLogs',
+  onDelete: 'CASCADE',
+});
+db.UserActivityLog.belongsTo(db.User, {
   foreignKey: 'user_id',
   as: 'user',
 });
@@ -488,6 +503,17 @@ db.User.hasOne(db.NotificationPreference, {
   onDelete: 'CASCADE',
 });
 db.NotificationPreference.belongsTo(db.User, {
+  foreignKey: 'user_id',
+  as: 'user',
+});
+
+// User - PushSubscription (One-to-Many)
+db.User.hasMany(db.PushSubscription, {
+  foreignKey: 'user_id',
+  as: 'pushSubscriptions',
+  onDelete: 'CASCADE',
+});
+db.PushSubscription.belongsTo(db.User, {
   foreignKey: 'user_id',
   as: 'user',
 });

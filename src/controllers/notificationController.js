@@ -3,7 +3,8 @@ const logger = require('../utils/logger');
 const { Op } = require('sequelize');
 const { v4: uuidv4 } = require('uuid');
 
-const { Notification, NotificationPreference, User } = db;
+const { Notification, NotificationPreference, User, PushSubscription } = db;
+const pushNotificationService = require('../services/pushNotificationService');
 
 /**
  * Get User Notifications
@@ -390,6 +391,135 @@ const createBulkNotifications = async (userIds, title, message, category = 'syst
     }
 };
 
+/**
+ * Subscribe to push notifications
+ * POST /api/v1/notifications/push/subscribe
+ */
+const subscribeToPush = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { subscription } = req.body;
+
+        if (!subscription || !subscription.endpoint || !subscription.keys) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz subscription verisi',
+            });
+        }
+
+        // Check if subscription already exists
+        let pushSub = await PushSubscription.findOne({
+            where: { endpoint: subscription.endpoint },
+        });
+
+        if (pushSub) {
+            // Update existing subscription
+            await pushSub.update({
+                user_id: userId,
+                p256dh: subscription.keys.p256dh,
+                auth: subscription.keys.auth,
+                user_agent: req.headers['user-agent'],
+                is_active: true,
+            });
+        } else {
+            // Create new subscription
+            pushSub = await PushSubscription.create({
+                user_id: userId,
+                endpoint: subscription.endpoint,
+                p256dh: subscription.keys.p256dh,
+                auth: subscription.keys.auth,
+                user_agent: req.headers['user-agent'],
+                is_active: true,
+            });
+        }
+
+        logger.info(`Push subscription saved for user ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'Push bildirimleri aktif edildi',
+            data: { id: pushSub.id },
+        });
+    } catch (error) {
+        logger.error('Subscribe to push error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Push aboneliği kaydedilemedi',
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Unsubscribe from push notifications
+ * POST /api/v1/notifications/push/unsubscribe
+ */
+const unsubscribeFromPush = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { subscription } = req.body;
+
+        if (!subscription || !subscription.endpoint) {
+            return res.status(400).json({
+                success: false,
+                message: 'Geçersiz subscription verisi',
+            });
+        }
+
+        await PushSubscription.update(
+            { is_active: false },
+            {
+                where: {
+                    user_id: userId,
+                    endpoint: subscription.endpoint,
+                },
+            }
+        );
+
+        logger.info(`Push subscription deactivated for user ${userId}`);
+
+        res.json({
+            success: true,
+            message: 'Push bildirimleri devre dışı bırakıldı',
+        });
+    } catch (error) {
+        logger.error('Unsubscribe from push error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Push aboneliği kaldırılamadı',
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Get VAPID public key
+ * GET /api/v1/notifications/push/public-key
+ */
+const getPublicKey = async (req, res) => {
+    try {
+        const publicKey = pushNotificationService.getPublicKey();
+        if (!publicKey) {
+            return res.status(503).json({
+                success: false,
+                message: 'Push bildirimleri yapılandırılmamış',
+            });
+        }
+
+        res.json({
+            success: true,
+            data: { publicKey },
+        });
+    } catch (error) {
+        logger.error('Get public key error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Public key alınamadı',
+            error: error.message,
+        });
+    }
+};
+
 module.exports = {
     getNotifications,
     getRecentNotifications,
@@ -399,5 +529,8 @@ module.exports = {
     getPreferences,
     updatePreferences,
     createNotification,
-    createBulkNotifications
+    createBulkNotifications,
+    subscribeToPush,
+    unsubscribeFromPush,
+    getPublicKey,
 };

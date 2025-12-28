@@ -1,7 +1,9 @@
 const emailService = require('./emailService');
+const pushNotificationService = require('./pushNotificationService');
+const smsService = require('./smsService');
 const logger = require('../utils/logger');
 const db = require('../models');
-const { Notification } = db;
+const { Notification, PushSubscription, NotificationPreference } = db;
 
 /**
  * NotificationService - Handles email, push, and SMS notifications
@@ -25,11 +27,85 @@ class NotificationService {
         action_url: notificationData.actionUrl || null,
       });
       logger.info(`Notification created for user ${userId}: ${notificationData.title}`);
+
+      // Send push notification if enabled
+      await this.sendPushNotification(userId, {
+        title: notificationData.title,
+        body: notificationData.message,
+        url: notificationData.actionUrl || '/notifications',
+        tag: notificationData.category || 'system',
+        data: {
+          notificationId: notification.id,
+          category: notificationData.category || 'system',
+        },
+      });
+
       return notification;
     } catch (error) {
       logger.error('Create notification error:', error);
       // Don't throw - notification failures shouldn't break the flow
       return null;
+    }
+  }
+
+  /**
+   * Send push notification to user
+   * @param {string} userId - User ID
+   * @param {Object} payload - Notification payload
+   * @returns {Promise<void>}
+   */
+  async sendPushNotification(userId, payload) {
+    try {
+      // Check user preferences
+      const preferences = await NotificationPreference.findOne({
+        where: { user_id: userId },
+      });
+
+      if (preferences) {
+        const category = payload.data?.category || 'system';
+        const pushEnabled = preferences[`push_${category}`] !== false; // Default true
+        if (!pushEnabled) {
+          logger.debug(`Push notifications disabled for user ${userId}, category ${category}`);
+          return;
+        }
+      }
+
+      // Get active push subscriptions for user
+      const subscriptions = await PushSubscription.findAll({
+        where: {
+          user_id: userId,
+          is_active: true,
+        },
+      });
+
+      if (subscriptions.length === 0) {
+        logger.debug(`No push subscriptions found for user ${userId}`);
+        return;
+      }
+
+      // Send to all subscriptions
+      const results = await Promise.allSettled(
+        subscriptions.map(sub => 
+          pushNotificationService.sendNotification(
+            sub.toWebPushSubscription(),
+            payload
+          )
+        )
+      );
+
+      // Remove expired subscriptions
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled' && 
+            result.value.statusCode === 410 || result.value.statusCode === 404) {
+          subscriptions[index].update({ is_active: false });
+          logger.info(`Deactivated expired push subscription for user ${userId}`);
+        }
+      });
+
+      logger.info(`Push notification sent to user ${userId} (${subscriptions.length} subscriptions)`);
+    } catch (error) {
+      logger.error('Error sending push notification:', error);
+      // Don't throw - push notification failures shouldn't break the flow
     }
   }
 

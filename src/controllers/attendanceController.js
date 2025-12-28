@@ -414,7 +414,7 @@ const getInstructorSessions = async (req, res) => {
 const checkIn = async (req, res) => {
   try {
     const { id } = req.params;
-    const { latitude, longitude, accuracy, qr_code } = req.body;
+    const { latitude, longitude, accuracy, qr_code, device_sensors } = req.body;
 
     // Get student
     const student = await Student.findOne({ where: { user_id: req.user.id } });
@@ -451,7 +451,8 @@ const checkIn = async (req, res) => {
       id,
       student.id,
       { latitude, longitude, accuracy },
-      method
+      method,
+      device_sensors || null
     );
 
     logger.info(`Student ${student.student_number} checked in to session ${id}`);

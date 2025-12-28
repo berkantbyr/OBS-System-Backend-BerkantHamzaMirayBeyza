@@ -9,6 +9,7 @@ const {
   getExpirationDate 
 } = require('../utils/jwt');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('./emailService');
+const activityLogService = require('./activityLogService');
 const logger = require('../utils/logger');
 const jwtConfig = require('../config/jwt');
 
@@ -199,6 +200,22 @@ const login = async (email, password, metadata = {}) => {
   
   logger.info(`✅ User found: ${user.id} (${user.email}), Active: ${user.is_active}, Verified: ${user.is_verified}`);
 
+  // Check if account is locked
+  if (user.locked_until && new Date(user.locked_until) > new Date()) {
+    const lockMinutes = Math.ceil((new Date(user.locked_until) - new Date()) / 1000 / 60);
+    logger.warn(`🔒 Account locked for user: ${normalizedEmail}, unlocks in ${lockMinutes} minutes`);
+    throw new Error(`Hesabınız geçici olarak kilitlenmiştir. Lütfen ${lockMinutes} dakika sonra tekrar deneyin.`);
+  }
+
+  // Reset lock if expired
+  if (user.locked_until && new Date(user.locked_until) <= new Date()) {
+    await user.update({ 
+      locked_until: null, 
+      failed_login_attempts: 0 
+    });
+    logger.info(`🔓 Account lock expired for user: ${normalizedEmail}`);
+  }
+
   // Email doğrulamasını zorunlu tutma
   // Hesap aktiflik kontrolü de devre dışı bırakıldı
 
@@ -215,14 +232,48 @@ const login = async (email, password, metadata = {}) => {
   try {
     const isValidPassword = await comparePassword(password, user.password_hash);
     if (!isValidPassword) {
-      logger.warn(`❌ Login failed for ${normalizedEmail}: Invalid password`);
+      // Increment failed login attempts
+      const failedAttempts = (user.failed_login_attempts || 0) + 1;
+      const MAX_ATTEMPTS = 5;
+      const LOCK_DURATION_MINUTES = 30;
+
+      let updateData = { failed_login_attempts: failedAttempts };
+
+      // Lock account after MAX_ATTEMPTS failed attempts
+      if (failedAttempts >= MAX_ATTEMPTS) {
+        const lockUntil = new Date();
+        lockUntil.setMinutes(lockUntil.getMinutes() + LOCK_DURATION_MINUTES);
+        updateData.locked_until = lockUntil;
+        logger.warn(`🔒 Account locked for user: ${normalizedEmail} after ${failedAttempts} failed attempts`);
+      }
+
+      await user.update(updateData);
+
+      logger.warn(`❌ Login failed for ${normalizedEmail}: Invalid password (attempt ${failedAttempts}/${MAX_ATTEMPTS})`);
       logger.warn(`❌ Password comparison failed. Hash exists: ${!!user.password_hash}`);
+      
+      // Log failed login attempt
+      await activityLogService.logActivity({
+        userId: user.id,
+        action: 'login',
+        resourceType: 'user',
+        resourceId: user.id,
+        ipAddress: metadata.ip,
+        userAgent: metadata.userAgent,
+        status: 'failure',
+        errorMessage: 'Invalid password',
+      });
+      
       // Don't reveal too much information for security
-      throw new Error('E-posta veya şifre hatalı');
+      if (failedAttempts >= MAX_ATTEMPTS) {
+        throw new Error(`Çok fazla başarısız giriş denemesi. Hesabınız ${LOCK_DURATION_MINUTES} dakika süreyle kilitlenmiştir.`);
+      } else {
+        throw new Error(`E-posta veya şifre hatalı. (${MAX_ATTEMPTS - failedAttempts} deneme hakkınız kaldı)`);
+      }
     }
   } catch (error) {
     // If password comparison itself fails (e.g., bcrypt error), log it
-    if (error.message !== 'E-posta veya şifre hatalı') {
+    if (error.message !== 'E-posta veya şifre hatalı' && !error.message.includes('deneme hakkınız') && !error.message.includes('kilitlenmiştir')) {
       logger.error(`❌ Password comparison error for ${normalizedEmail}:`, error);
       throw new Error('Şifre doğrulama sırasında bir hata oluştu');
     }
@@ -230,6 +281,15 @@ const login = async (email, password, metadata = {}) => {
   }
   
   logger.info(`✅ Password verified successfully for user: ${normalizedEmail}`);
+
+  // Reset failed login attempts on successful login
+  if (user.failed_login_attempts > 0 || user.locked_until) {
+    await user.update({ 
+      failed_login_attempts: 0, 
+      locked_until: null 
+    });
+    logger.info(`✅ Reset failed login attempts for user: ${normalizedEmail}`);
+  }
 
   // Her girişte hesabı aktif ve doğrulanmış hale getir
   if (!user.is_active || !user.is_verified) {
@@ -257,6 +317,17 @@ const login = async (email, password, metadata = {}) => {
 
   // Update last login
   await user.update({ last_login: new Date() });
+
+  // Log successful login activity
+  await activityLogService.logActivity({
+    userId: user.id,
+    action: 'login',
+    resourceType: 'user',
+    resourceId: user.id,
+    ipAddress: metadata.ip,
+    userAgent: metadata.userAgent,
+    status: 'success',
+  });
 
   logger.info(`User logged in: ${email}`);
 
@@ -306,13 +377,31 @@ const refreshAccessToken = async (refreshToken) => {
  * Logout user
  * @param {string} refreshToken - Refresh token to invalidate
  */
-const logout = async (refreshToken) => {
+const logout = async (refreshToken, metadata = {}) => {
   if (!refreshToken) return;
+
+  // Get user ID from refresh token before revoking
+  const storedToken = await RefreshToken.findOne({ 
+    where: { token: refreshToken, is_revoked: false } 
+  });
 
   await RefreshToken.update(
     { is_revoked: true },
     { where: { token: refreshToken } }
   );
+
+  // Log logout activity if we found the token
+  if (storedToken && storedToken.user_id) {
+    await activityLogService.logActivity({
+      userId: storedToken.user_id,
+      action: 'logout',
+      resourceType: 'user',
+      resourceId: storedToken.user_id,
+      ipAddress: metadata.ip,
+      userAgent: metadata.userAgent,
+      status: 'success',
+    });
+  }
 
   logger.info('User logged out');
 };

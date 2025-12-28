@@ -61,13 +61,14 @@ class AttendanceService {
   }
 
   /**
-   * Detect potential GPS spoofing
+   * Detect potential GPS spoofing using GPS and device sensors
    * @param {Object} studentLocation - { latitude, longitude, accuracy }
    * @param {Object} sessionLocation - { latitude, longitude }
    * @param {string} studentId - Student ID for history check
+   * @param {Array} deviceSensorData - Device sensor data array
    * @returns {Object} - { isSuspicious, reasons }
    */
-  async detectSpoofing(studentLocation, sessionLocation, studentId) {
+  async detectSpoofing(studentLocation, sessionLocation, studentId, deviceSensorData = null) {
     const reasons = [];
 
     // Check 1: Accuracy too good (potential mock location)
@@ -118,10 +119,105 @@ class AttendanceService {
       reasons.push('Coordinates exactly match classroom center');
     }
 
+    // Check 5: Device sensor analysis (Advanced spoofing detection)
+    if (deviceSensorData && deviceSensorData.length > 0) {
+      const sensorReasons = this.analyzeDeviceSensors(deviceSensorData);
+      reasons.push(...sensorReasons);
+    }
+
     return {
       isSuspicious: reasons.length > 0,
       reasons,
     };
+  }
+
+  /**
+   * Analyze device sensor data for spoofing detection
+   * @param {Array} sensorData - Array of sensor readings
+   * @returns {Array} - Array of suspicious reasons
+   */
+  analyzeDeviceSensors(sensorData) {
+    const reasons = [];
+
+    if (!sensorData || sensorData.length === 0) {
+      return reasons;
+    }
+
+    // Check 1: No sensor data variation (device might be stationary or spoofed)
+    const accelerometerValues = sensorData
+      .map(s => s.accelerometer)
+      .filter(a => a && (a.x !== null || a.y !== null || a.z !== null));
+
+    if (accelerometerValues.length > 0) {
+      const xValues = accelerometerValues.map(a => Math.abs(a.x || 0));
+      const yValues = accelerometerValues.map(a => Math.abs(a.y || 0));
+      const zValues = accelerometerValues.map(a => Math.abs(a.z || 0));
+
+      const xVariance = this.calculateVariance(xValues);
+      const yVariance = this.calculateVariance(yValues);
+      const zVariance = this.calculateVariance(zValues);
+
+      // Very low variance suggests device is not moving (could be spoofed)
+      const minVariance = 0.01; // Threshold for minimum expected variance
+      if (xVariance < minVariance && yVariance < minVariance && zVariance < minVariance) {
+        reasons.push('Device sensors show no movement (suspiciously static)');
+      }
+    }
+
+    // Check 2: Unrealistic acceleration values
+    const maxReasonableAcceleration = 20; // m/s² (roughly 2g)
+    accelerometerValues.forEach((accel, index) => {
+      const magnitude = Math.sqrt(
+        Math.pow(accel.x || 0, 2) +
+        Math.pow(accel.y || 0, 2) +
+        Math.pow(accel.z || 0, 2)
+      );
+      if (magnitude > maxReasonableAcceleration) {
+        reasons.push(`Unrealistic acceleration detected (${magnitude.toFixed(2)} m/s²)`);
+      }
+    });
+
+    // Check 3: Rotation rate analysis
+    const rotationRates = sensorData
+      .map(s => s.rotationRate)
+      .filter(r => r && (r.alpha !== null || r.beta !== null || r.gamma !== null));
+
+    if (rotationRates.length > 0) {
+      const alphaValues = rotationRates.map(r => Math.abs(r.alpha || 0));
+      const betaValues = rotationRates.map(r => Math.abs(r.beta || 0));
+      const gammaValues = rotationRates.map(r => Math.abs(r.gamma || 0));
+
+      const maxRotationRate = 360; // degrees per second (1 full rotation per second)
+      if (Math.max(...alphaValues) > maxRotationRate ||
+          Math.max(...betaValues) > maxRotationRate ||
+          Math.max(...gammaValues) > maxRotationRate) {
+        reasons.push('Unrealistic rotation rate detected');
+      }
+    }
+
+    // Check 4: Missing sensor data (device might not support sensors or permission denied)
+    const hasAccelerometer = sensorData.some(s => s.accelerometer && (s.accelerometer.x !== null || s.accelerometer.y !== null || s.accelerometer.z !== null));
+    const hasRotation = sensorData.some(s => s.rotationRate && (s.rotationRate.alpha !== null || s.rotationRate.beta !== null || s.rotationRate.gamma !== null));
+
+    // Note: Missing sensors alone is not suspicious, but combined with other factors it can be
+    // We'll only flag if we have very few samples
+    if (sensorData.length < 3) {
+      reasons.push('Insufficient sensor data samples');
+    }
+
+    return reasons;
+  }
+
+  /**
+   * Calculate variance of an array of numbers
+   * @param {Array} values - Array of numbers
+   * @returns {number} - Variance
+   */
+  calculateVariance(values) {
+    if (values.length === 0) return 0;
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const squaredDiffs = values.map(value => Math.pow(value - mean, 2));
+    return squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
   }
 
   /**
@@ -130,9 +226,10 @@ class AttendanceService {
    * @param {string} studentId - Student ID
    * @param {Object} location - { latitude, longitude, accuracy }
    * @param {string} method - Check-in method (gps, qr_code, manual)
+   * @param {Array} deviceSensorData - Device sensor data for spoofing detection
    * @returns {Object} - Check-in result
    */
-  async processCheckIn(sessionId, studentId, location, method = 'gps') {
+  async processCheckIn(sessionId, studentId, location, method = 'gps', deviceSensorData = null) {
     // Get session
     const session = await AttendanceSession.findByPk(sessionId, {
       include: [{ model: CourseSection, as: 'section' }],
@@ -195,11 +292,12 @@ class AttendanceService {
         );
       }
 
-      // Check for spoofing
+      // Check for spoofing (with device sensor data)
       spoofingResult = await this.detectSpoofing(
         location,
         { latitude: session.latitude, longitude: session.longitude },
-        studentId
+        studentId,
+        deviceSensorData
       );
 
       if (spoofingResult.isSuspicious) {

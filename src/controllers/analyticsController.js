@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { Op, fn, col, literal } = require('sequelize');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
+const predictionService = require('../services/predictionService');
 
 const {
     User, Student, Faculty, Department, Course, CourseSection,
@@ -1076,11 +1077,92 @@ const convertToCSV = (data) => {
     return csvRows.join('\n');
 };
 
+/**
+ * Get Attendance Predictions for Student
+ * GET /api/v1/analytics/attendance/predictions/student/:studentId
+ */
+const getStudentAttendancePrediction = async (req, res) => {
+    try {
+        const { studentId } = req.params;
+        const { sectionId } = req.query;
+
+        const prediction = await predictionService.predictStudentAttendance(studentId, sectionId || null);
+
+        res.json({
+            success: true,
+            data: prediction
+        });
+    } catch (error) {
+        logger.error('Error getting student attendance prediction:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Tahmin alınamadı',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get Attendance Predictions for Section
+ * GET /api/v1/analytics/attendance/predictions/section/:sectionId
+ */
+const getSectionAttendancePrediction = async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+
+        const prediction = await predictionService.predictSectionAttendance(sectionId);
+
+        res.json({
+            success: true,
+            data: prediction
+        });
+    } catch (error) {
+        logger.error('Error getting section attendance prediction:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Tahmin alınamadı',
+            error: error.message
+        });
+    }
+};
+
+/**
+ * Get At-Risk Students for Section
+ * GET /api/v1/analytics/attendance/predictions/at-risk/:sectionId
+ */
+const getAtRiskStudents = async (req, res) => {
+    try {
+        const { sectionId } = req.params;
+        const threshold = parseFloat(req.query.threshold) || 70;
+
+        const atRiskStudents = await predictionService.predictAtRiskStudents(sectionId, threshold);
+
+        res.json({
+            success: true,
+            data: {
+                atRiskStudents,
+                count: atRiskStudents.length,
+                threshold
+            }
+        });
+    } catch (error) {
+        logger.error('Error getting at-risk students:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Risk analizi alınamadı',
+            error: error.message
+        });
+    }
+};
+
 module.exports = {
     getDashboardStats,
     getAcademicPerformance,
     getAttendanceAnalytics,
     getMealUsageAnalytics,
     getEventAnalytics,
-    exportReport
+    exportReport,
+    getStudentAttendancePrediction,
+    getSectionAttendancePrediction,
+    getAtRiskStudents
 };
