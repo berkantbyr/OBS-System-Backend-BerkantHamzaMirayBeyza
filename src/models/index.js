@@ -156,6 +156,16 @@ db.Course.belongsTo(db.Department, {
   as: 'department',
 });
 
+// Faculty - Course (One-to-Many)
+db.Faculty.hasMany(db.Course, {
+  foreignKey: 'instructor_id',
+  as: 'courses',
+});
+db.Course.belongsTo(db.Faculty, {
+  foreignKey: 'instructor_id',
+  as: 'instructor',
+});
+
 // Course - CourseSection (One-to-Many)
 db.Course.hasMany(db.CourseSection, {
   foreignKey: 'course_id',

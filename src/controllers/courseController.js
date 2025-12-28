@@ -42,6 +42,12 @@ const getCourses = async (req, res) => {
       where,
       include: [
         { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+        { 
+          model: Faculty, 
+          as: 'instructor', 
+          attributes: ['id'],
+          include: [{ model: User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }]
+        },
       ],
       order: [[sort_by, sort_order.toUpperCase()]],
       limit: parseInt(limit),
@@ -81,6 +87,12 @@ const getCourseById = async (req, res) => {
     const course = await Course.findByPk(id, {
       include: [
         { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+        { 
+          model: Faculty, 
+          as: 'instructor', 
+          attributes: ['id'],
+          include: [{ model: User, as: 'user', attributes: ['id', 'first_name', 'last_name', 'email'] }]
+        },
       ],
     });
 
@@ -185,7 +197,7 @@ const getCourseById = async (req, res) => {
  */
 const createCourse = async (req, res) => {
   try {
-    const { code, name, description, credits, ects, syllabus_url, department_id, prerequisites } = req.body;
+    const { code, name, description, credits, ects, syllabus_url, department_id, instructor_id, prerequisites } = req.body;
 
     // Check if course code already exists
     const existingCourse = await Course.findOne({ where: { code } });
@@ -207,6 +219,18 @@ const createCourse = async (req, res) => {
       }
     }
 
+    // Validate instructor (faculty)
+    if (instructor_id) {
+      const { Faculty } = require('../models');
+      const faculty = await Faculty.findByPk(instructor_id);
+      if (!faculty) {
+        return res.status(400).json({
+          success: false,
+          message: 'Geçersiz öğretim üyesi',
+        });
+      }
+    }
+
     // Create course
     const course = await Course.create({
       code,
@@ -216,6 +240,7 @@ const createCourse = async (req, res) => {
       ects: ects || 5,
       syllabus_url,
       department_id,
+      instructor_id: instructor_id || null,
       is_active: true,
     });
 
@@ -257,7 +282,7 @@ const createCourse = async (req, res) => {
 const updateCourse = async (req, res) => {
   try {
     const { id } = req.params;
-    const { code, name, description, credits, ects, syllabus_url, department_id, is_active, prerequisites } = req.body;
+    const { code, name, description, credits, ects, syllabus_url, department_id, instructor_id, is_active, prerequisites } = req.body;
 
     const course = await Course.findByPk(id);
     if (!course) {
@@ -278,6 +303,20 @@ const updateCourse = async (req, res) => {
       }
     }
 
+    // Validate instructor (faculty) if provided
+    if (instructor_id !== undefined) {
+      if (instructor_id) {
+        const { Faculty } = require('../models');
+        const faculty = await Faculty.findByPk(instructor_id);
+        if (!faculty) {
+          return res.status(400).json({
+            success: false,
+            message: 'Geçersiz öğretim üyesi',
+          });
+        }
+      }
+    }
+
     // Update course
     await course.update({
       code: code || course.code,
@@ -287,6 +326,7 @@ const updateCourse = async (req, res) => {
       ects: ects || course.ects,
       syllabus_url: syllabus_url !== undefined ? syllabus_url : course.syllabus_url,
       department_id: department_id !== undefined ? department_id : course.department_id,
+      instructor_id: instructor_id !== undefined ? (instructor_id || null) : course.instructor_id,
       is_active: is_active !== undefined ? is_active : course.is_active,
     });
 
@@ -386,6 +426,43 @@ const getDepartments = async (req, res) => {
   }
 };
 
+/**
+ * Get instructor's courses (faculty)
+ * GET /api/v1/courses/my-courses
+ */
+const getInstructorCourses = async (req, res) => {
+  try {
+    // Get faculty ID from user
+    const faculty = await Faculty.findOne({ where: { user_id: req.user.id } });
+    if (!faculty) {
+      return res.status(403).json({
+        success: false,
+        message: 'Öğretim üyesi kaydı bulunamadı',
+      });
+    }
+
+    const courses = await Course.findAll({
+      where: { instructor_id: faculty.id },
+      include: [
+        { model: Department, as: 'department', attributes: ['id', 'name', 'code'] },
+      ],
+      order: [['code', 'ASC']],
+    });
+
+    res.json({
+      success: true,
+      data: courses,
+    });
+  } catch (error) {
+    logger.error('Get instructor courses error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Dersler alınırken hata oluştu',
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getCourses,
   getCourseById,
@@ -393,6 +470,7 @@ module.exports = {
   updateCourse,
   deleteCourse,
   getDepartments,
+  getInstructorCourses,
 };
 
 

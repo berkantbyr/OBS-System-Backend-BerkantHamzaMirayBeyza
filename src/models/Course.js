@@ -48,6 +48,14 @@ module.exports = (sequelize, DataTypes) => {
         key: 'id',
       },
     },
+    instructor_id: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'faculty',
+        key: 'id',
+      },
+    },
     is_active: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
@@ -66,6 +74,9 @@ module.exports = (sequelize, DataTypes) => {
     indexes: [
       {
         fields: ['department_id'],
+      },
+      {
+        fields: ['instructor_id'],
       },
       {
         fields: ['is_active'],

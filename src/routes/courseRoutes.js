@@ -11,6 +11,9 @@ const courseController = require('../controllers/courseController');
 // Get all departments (public - no auth required)
 router.get('/departments', courseController.getDepartments);
 
+// Get instructor's courses (faculty only)
+router.get('/my-courses', authenticate, authorize('faculty', 'admin'), courseController.getInstructorCourses);
+
 // Get all courses (public - no auth required for browsing)
 router.get('/', courseController.getCourses);
 
@@ -27,6 +30,7 @@ router.put('/:id', authenticate, authorize('admin'), courseController.updateCour
 router.delete('/:id', authenticate, authorize('admin'), courseController.deleteCourse);
 
 module.exports = router;
+
 
 
 
