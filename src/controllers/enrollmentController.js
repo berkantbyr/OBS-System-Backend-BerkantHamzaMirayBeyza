@@ -475,10 +475,12 @@ const getMySchedule = async (req, res) => {
       );
 
       // Create schedules for sections that don't have them yet
+      logger.info(`📅 Found ${sectionsNeedingSchedules.length} sections needing schedules`);
       for (const enrollment of sectionsNeedingSchedules) {
         if (!enrollment.section) continue;
 
         try {
+          logger.info(`🔄 Creating schedule for section ${enrollment.section_id} (Course: ${enrollment.section.course?.code || 'N/A'})`);
           // Try to create schedule from schedule_json
           await enrollmentService.createScheduleFromSection(enrollment.section_id);
 
@@ -504,6 +506,7 @@ const getMySchedule = async (req, res) => {
           });
 
           // Add to schedule array
+          logger.info(`✅ Created ${newSchedules.length} schedule entries for section ${enrollment.section_id}`);
           for (const scheduleItem of newSchedules) {
             if (!scheduleItem.section || !scheduleItem.section.course) continue;
 
