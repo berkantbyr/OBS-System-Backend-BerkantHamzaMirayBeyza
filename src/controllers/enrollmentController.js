@@ -398,11 +398,167 @@ const getMySchedule = async (req, res) => {
       }
     }
 
-    const schedule = await scheduleConflictService.getStudentSchedule(
-      student.id,
-      currentSemester,
-      parseInt(currentYear)
-    );
+    // Get enrolled sections for the semester
+    const enrollments = await Enrollment.findAll({
+      where: {
+        student_id: student.id,
+        status: { [Op.in]: ['enrolled', 'completed'] },
+      },
+      include: [
+        {
+          model: CourseSection,
+          as: 'section',
+          where: { semester: currentSemester, year: parseInt(currentYear) },
+          required: false,
+          include: [
+            { model: Course, as: 'course', attributes: ['code', 'name'], required: false },
+            { model: db.Faculty, as: 'instructor', required: false, include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }] },
+            { model: db.Classroom, as: 'classroom', attributes: ['building', 'room_number'], required: false },
+          ],
+        },
+      ],
+    });
+
+    const schedule = [];
+    const sectionIds = enrollments.map(e => e.section_id).filter(Boolean);
+
+    if (sectionIds.length > 0) {
+      // First, try to get schedules from schedules table
+      const schedulesFromTable = await db.Schedule.findAll({
+        where: {
+          section_id: { [Op.in]: sectionIds },
+        },
+        include: [
+          {
+            model: CourseSection,
+            as: 'section',
+            include: [
+              { model: Course, as: 'course', attributes: ['code', 'name'], required: false },
+              { model: db.Faculty, as: 'instructor', required: false, include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }] },
+            ],
+          },
+          {
+            model: db.Classroom,
+            as: 'classroom',
+            attributes: ['building', 'room_number'],
+          },
+        ],
+        order: [['day_of_week', 'ASC'], ['start_time', 'ASC']],
+      });
+
+      // Convert schedules table format to expected format
+      for (const scheduleItem of schedulesFromTable) {
+        if (!scheduleItem.section || !scheduleItem.section.course) continue;
+
+        schedule.push({
+          day: scheduleItem.day_of_week.toLowerCase(),
+          start_time: scheduleItem.start_time,
+          end_time: scheduleItem.end_time,
+          course: {
+            code: scheduleItem.section.course.code || 'N/A',
+            name: scheduleItem.section.course.name || 'N/A',
+          },
+          sectionNumber: scheduleItem.section.section_number,
+          instructor: scheduleItem.section.instructor?.user
+            ? `${scheduleItem.section.instructor.user.first_name} ${scheduleItem.section.instructor.user.last_name}`
+            : null,
+          classroom: scheduleItem.classroom
+            ? `${scheduleItem.classroom.building} ${scheduleItem.classroom.room_number}`
+            : null,
+        });
+      }
+
+      // For sections without schedules in the table, try to create from schedule_json
+      const sectionsWithSchedules = new Set(schedulesFromTable.map(s => s.section_id));
+      const sectionsNeedingSchedules = enrollments.filter(
+        e => e.section && !sectionsWithSchedules.has(e.section_id)
+      );
+
+      // Create schedules for sections that don't have them yet
+      for (const enrollment of sectionsNeedingSchedules) {
+        if (!enrollment.section) continue;
+
+        try {
+          // Try to create schedule from schedule_json
+          await enrollmentService.createScheduleFromSection(enrollment.section_id);
+
+          // Get the newly created schedules
+          const newSchedules = await db.Schedule.findAll({
+            where: { section_id: enrollment.section_id },
+            include: [
+              {
+                model: CourseSection,
+                as: 'section',
+                include: [
+                  { model: Course, as: 'course', attributes: ['code', 'name'], required: false },
+                  { model: db.Faculty, as: 'instructor', required: false, include: [{ model: db.User, as: 'user', attributes: ['first_name', 'last_name'], required: false }] },
+                ],
+              },
+              {
+                model: db.Classroom,
+                as: 'classroom',
+                attributes: ['building', 'room_number'],
+              },
+            ],
+            order: [['day_of_week', 'ASC'], ['start_time', 'ASC']],
+          });
+
+          // Add to schedule array
+          for (const scheduleItem of newSchedules) {
+            if (!scheduleItem.section || !scheduleItem.section.course) continue;
+
+            schedule.push({
+              day: scheduleItem.day_of_week.toLowerCase(),
+              start_time: scheduleItem.start_time,
+              end_time: scheduleItem.end_time,
+              course: {
+                code: scheduleItem.section.course.code || 'N/A',
+                name: scheduleItem.section.course.name || 'N/A',
+              },
+              sectionNumber: scheduleItem.section.section_number,
+              instructor: scheduleItem.section.instructor?.user
+                ? `${scheduleItem.section.instructor.user.first_name} ${scheduleItem.section.instructor.user.last_name}`
+                : null,
+              classroom: scheduleItem.classroom
+                ? `${scheduleItem.classroom.building} ${scheduleItem.classroom.room_number}`
+                : null,
+            });
+          }
+        } catch (error) {
+          logger.warn(`Failed to create schedule for section ${enrollment.section_id}:`, error.message);
+          // Fallback to schedule_json if schedule creation fails
+          const slots = scheduleConflictService.parseSchedule(enrollment.section.schedule_json);
+          for (const slot of slots) {
+            schedule.push({
+              day: slot.day,
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              course: {
+                code: enrollment.section.course?.code || 'N/A',
+                name: enrollment.section.course?.name || 'N/A',
+              },
+              sectionNumber: enrollment.section.section_number,
+              instructor: enrollment.section.instructor?.user
+                ? `${enrollment.section.instructor.user.first_name} ${enrollment.section.instructor.user.last_name}`
+                : null,
+              classroom: enrollment.section.classroom
+                ? `${enrollment.section.classroom.building} ${enrollment.section.classroom.room_number}`
+                : null,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by day and time
+    const dayOrder = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    schedule.sort((a, b) => {
+      const dayDiff = dayOrder.indexOf(a.day.toLowerCase()) - dayOrder.indexOf(b.day.toLowerCase());
+      if (dayDiff !== 0) return dayDiff;
+      const timeA = scheduleConflictService.timeToMinutes(a.start_time);
+      const timeB = scheduleConflictService.timeToMinutes(b.start_time);
+      return timeA - timeB;
+    });
 
     res.json({
       success: true,
