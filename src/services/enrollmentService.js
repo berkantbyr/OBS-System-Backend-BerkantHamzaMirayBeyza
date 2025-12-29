@@ -1,5 +1,5 @@
 const db = require('../models');
-const { Enrollment, CourseSection, Course, Student } = db;
+const { Enrollment, CourseSection, Course, Student, Schedule } = db;
 const prerequisiteService = require('./prerequisiteService');
 const scheduleConflictService = require('./scheduleConflictService');
 const notificationService = require('./notificationService');
@@ -251,6 +251,9 @@ class EnrollmentService {
           transaction,
         }
       );
+
+      // Create schedule entries from section's schedule_json if not already exists
+      await this.createScheduleFromSection(enrollment.section_id, transaction);
 
       await transaction.commit();
 
@@ -592,6 +595,88 @@ class EnrollmentService {
       ],
       order: [[{ model: Student, as: 'student' }, 'student_number', 'ASC']],
     });
+  }
+
+  /**
+   * Create schedule entries from section's schedule_json
+   * @param {string} sectionId - Section ID
+   * @param {Object} transaction - Sequelize transaction
+   */
+  async createScheduleFromSection(sectionId, transaction = null) {
+    try {
+      // Check if schedules already exist for this section
+      const existingSchedules = await Schedule.count({
+        where: { section_id: sectionId },
+        transaction,
+      });
+
+      if (existingSchedules > 0) {
+        logger.info(`📅 Schedules already exist for section: ${sectionId}, skipping creation`);
+        return;
+      }
+
+      // Get section with schedule_json
+      const section = await CourseSection.findByPk(sectionId, {
+        include: [{ model: db.Classroom, as: 'classroom' }],
+        transaction,
+      });
+
+      if (!section || !section.schedule_json) {
+        logger.info(`⚠️ Section ${sectionId} has no schedule_json, skipping schedule creation`);
+        return;
+      }
+
+      // Parse schedule_json
+      const scheduleSlots = scheduleConflictService.parseSchedule(section.schedule_json);
+
+      if (!scheduleSlots || scheduleSlots.length === 0) {
+        logger.info(`⚠️ Section ${sectionId} has empty schedule_json, skipping schedule creation`);
+        return;
+      }
+
+      // Get classroom_id (use section's classroom_id or first available classroom)
+      let classroomId = section.classroom_id;
+
+      // If no classroom assigned, try to get a default classroom
+      if (!classroomId) {
+        const defaultClassroom = await db.Classroom.findOne({
+          where: { is_active: true },
+          order: [['created_at', 'ASC']],
+          transaction,
+        });
+        if (defaultClassroom) {
+          classroomId = defaultClassroom.id;
+          logger.info(`📌 Using default classroom ${classroomId} for section ${sectionId}`);
+        } else {
+          logger.warn(`⚠️ No classroom available for section ${sectionId}, skipping schedule creation`);
+          return;
+        }
+      }
+
+      // Create schedule entries
+      const scheduleEntries = [];
+      for (const slot of scheduleSlots) {
+        // Normalize day name (e.g., "monday" -> "Monday")
+        const dayName = slot.day.charAt(0).toUpperCase() + slot.day.slice(1).toLowerCase();
+
+        scheduleEntries.push({
+          section_id: sectionId,
+          day_of_week: dayName,
+          start_time: slot.start_time,
+          end_time: slot.end_time,
+          classroom_id: classroomId,
+        });
+      }
+
+      // Bulk create schedules
+      if (scheduleEntries.length > 0) {
+        await Schedule.bulkCreate(scheduleEntries, { transaction });
+        logger.info(`✅ Created ${scheduleEntries.length} schedule entries for section: ${sectionId}`);
+      }
+    } catch (error) {
+      logger.error(`❌ Error creating schedule for section ${sectionId}:`, error);
+      // Don't throw error - schedule creation failure shouldn't prevent enrollment approval
+    }
   }
 
   /**
